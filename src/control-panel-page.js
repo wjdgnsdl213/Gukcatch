@@ -718,7 +718,7 @@ const PAGE_HTML = `<!doctype html>
     }
     data.files.forEach((f) => {
       sel.appendChild(el('option', {
-        value: f.name,
+        value: f.relPath,
         text: f.name + '  (' + f.kind + ', ' + fmtBytes(f.bytes) + ')',
       }));
     });

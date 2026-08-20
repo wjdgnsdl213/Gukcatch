@@ -31,16 +31,36 @@ const {
   ShadingType,
 } = require('docx');
 
+// ── DESIGN-cal.md 토큰 ──────────────────────────────────────────────
+// 제어판 UI와 같은 팔레트를 쓴다. 다만 본문 서체는 Inter가 아니라 맑은
+// 고딕이다 — Inter에는 한글 글리프가 없어서 어차피 폴백되고, 받는 쪽
+// PC에 Inter가 깔려 있으리라 기대할 수 없다. 색·여백·위계만 가져온다.
 const FONT = '맑은 고딕';
-const BORDER = { style: BorderStyle.SINGLE, size: 4, color: 'BFBFBF' };
+const INK = '111111';        // primary / ink
+const BODY = '374151';       // body
+const MUTED = '6B7280';      // muted
+const MUTED_SOFT = '898989'; // muted-soft
+const HAIRLINE = 'E5E7EB';   // hairline
+const SURFACE_CARD = 'F5F5F5';
+const SURFACE_SOFT = 'F8F9FA';
+const ON_PRIMARY = 'FFFFFF';
+const ERROR = 'EF4444';
+const WARNING_INK = '92400E';
+const WARNING_FILL = 'FEF3C7';
+
+const BORDER = { style: BorderStyle.SINGLE, size: 4, color: HAIRLINE };
 const TABLE_BORDERS = {
   top: BORDER, bottom: BORDER, left: BORDER, right: BORDER,
   insideHorizontal: BORDER, insideVertical: BORDER,
 };
-const HEADER_FILL = 'E8ECF4';
-const LABEL_FILL = 'F4F6FA';
 
-function text(str, { bold = false, size = 20, color, italics = false } = {}) {
+// 표 머리는 검정 면 + 흰 글자. 스펙상 어두운 면은 아껴 쓰는 신호인데,
+// 문서에서는 그 자리가 섹션 구분(= 웹의 featured 취급)에 해당한다.
+// 흑백 인쇄에서도 구획이 살아남는다는 실용적 이점도 있다.
+const HEADER_FILL = INK;
+const LABEL_FILL = SURFACE_CARD;
+
+function text(str, { bold = false, size = 20, color = BODY, italics = false } = {}) {
   return new TextRun({ text: String(str ?? ''), bold, size, color, italics, font: FONT });
 }
 
@@ -65,7 +85,9 @@ function cell(children, { fill, width, span } = {}) {
     shading: fill ? { type: ShadingType.CLEAR, color: 'auto', fill } : undefined,
     width: width ? { size: width, type: WidthType.PERCENTAGE } : undefined,
     columnSpan: span,
-    margins: { top: 80, bottom: 80, left: 120, right: 120 },
+    // 스펙의 카드 내부 여백(24px)에 맞춘 셀 패딩. twip 단위(1/20pt)라
+    // 140 ≈ 7pt ≈ 9px. 표가 빽빽해 보이지 않게 기존보다 넉넉히 준다.
+    margins: { top: 140, bottom: 140, left: 180, right: 180 },
   });
 }
 
@@ -84,30 +106,34 @@ function rangesToText(ranges) {
 
 /** ② 요약 표 — 전체를 한눈에 */
 function buildSummaryTable(items) {
+  const th = (label, width) =>
+    cell(para(label, { bold: true, color: ON_PRIMARY, align: AlignmentType.CENTER }), {
+      fill: HEADER_FILL,
+      width,
+    });
+
   const head = new TableRow({
     tableHeader: true,
     children: [
-      cell(para('연번', { bold: true, align: AlignmentType.CENTER }), { fill: HEADER_FILL, width: 7 }),
-      cell(para('의원명', { bold: true, align: AlignmentType.CENTER }), { fill: HEADER_FILL, width: 15 }),
-      cell(para('주제', { bold: true, align: AlignmentType.CENTER }), { fill: HEADER_FILL, width: 20 }),
-      cell(para('답변자', { bold: true, align: AlignmentType.CENTER }), { fill: HEADER_FILL, width: 18 }),
-      cell(para('키워드', { bold: true, align: AlignmentType.CENTER }), { fill: HEADER_FILL, width: 25 }),
-      cell(para('영상시점', { bold: true, align: AlignmentType.CENTER }), { fill: HEADER_FILL, width: 15 }),
+      th('연번', 7), th('의원명', 15), th('주제', 20),
+      th('답변자', 18), th('키워드', 25), th('영상시점', 15),
     ],
   });
 
-  const rows = items.map((r, i) =>
-    new TableRow({
+  // 짝수 행에 아주 옅은 면을 깔아 행 추적을 돕는다 (zebra).
+  const rows = items.map((r, i) => {
+    const fill = i % 2 === 1 ? SURFACE_SOFT : undefined;
+    return new TableRow({
       children: [
-        cell(para(i + 1, { align: AlignmentType.CENTER })),
-        cell(para(r.의원명 || '미상')),
-        cell(para(r.주제 || '-')),
-        cell(para(r.답변자 || '미상')),
-        cell(para((r.매칭키워드 || []).map((k) => k.그룹).join(', ') || '-')),
-        cell(para(r.영상시점 || '--:--:--', { align: AlignmentType.CENTER })),
+        cell(para(i + 1, { align: AlignmentType.CENTER, color: MUTED }), { fill }),
+        cell(para(r.의원명 || '미상', { color: INK, bold: true }), { fill }),
+        cell(para(r.주제 || '-', { color: INK }), { fill }),
+        cell(para(r.답변자 || '미상'), { fill }),
+        cell(para((r.매칭키워드 || []).map((k) => k.그룹).join(', ') || '-', { color: MUTED }), { fill }),
+        cell(para(r.영상시점 || '--:--:--', { align: AlignmentType.CENTER, color: MUTED }), { fill }),
       ],
-    }),
-  );
+    });
+  });
 
   return fullWidthTable([head, ...rows]);
 }
@@ -117,8 +143,8 @@ function buildDetailTable(r, index) {
   const row = (label, body, opts = {}) =>
     new TableRow({
       children: [
-        cell(para(label, { bold: true }), { fill: LABEL_FILL, width: 15 }),
-        cell(Array.isArray(body) ? body : [body], { width: 85 }),
+        cell(para(label, { bold: true, color: INK }), { fill: LABEL_FILL, width: 16 }),
+        cell(Array.isArray(body) ? body : [body], { width: 84 }),
       ],
       ...opts,
     });
@@ -127,7 +153,11 @@ function buildDetailTable(r, index) {
     tableHeader: true,
     children: [
       cell(
-        para(`${index + 1}. ${r.주제 || '(주제 미상)'}`, { bold: true, size: 22 }),
+        para(`${index + 1}. ${r.주제 || '(주제 미상)'}`, {
+          bold: true,
+          size: 24,
+          color: ON_PRIMARY,
+        }),
         { fill: HEADER_FILL, span: 2 },
       ),
     ],
@@ -135,10 +165,12 @@ function buildDetailTable(r, index) {
 
   const rows = [
     header,
-    row('일시', para(r.일시 || '-')),
-    row('상임위', para(r.상임위 || '-')),
-    row('의원명', para(r.의원명 || '미상', { bold: true })),
-    row('답변자', para(r.답변자 || '미상')),
+    // 상임위는 문서 제목에 이미 들어가고 한 문서 = 한 상임위이므로 행마다
+    // 반복하지 않는다. 일시는 남긴다 — 표 하나만 떼어 다른 문서에 붙이는
+    // 경우가 있어 그때 날짜가 없으면 곤란하다.
+    row('일시', para(r.일시 || '-', { color: MUTED })),
+    row('의원명', para(r.의원명 || '미상', { bold: true, color: INK })),
+    row('답변자', para(r.답변자 || '미상', { color: INK })),
     row('질의요지', multilinePara(r.질의요지 || '-')),
     row('답변내용', multilinePara(r.답변내용 || '(답변 구간 없음)')),
     row('시사점', multilinePara(r.시사점 || '-')),
@@ -155,17 +187,24 @@ function buildDetailTable(r, index) {
       '근거',
       para(
         `영상 ${r.영상시점 || '--:--:--'} · 자막 줄 [질의 ${rangesToText(r.근거줄?.질의)} / 답변 ${rangesToText(r.근거줄?.답변)}]`,
-        { size: 18, color: '666666' },
+        { size: 18, color: MUTED_SOFT },
       ),
     ),
   );
 
   // 사람이 반드시 확인해야 하는 항목은 표 안에 경고를 남긴다.
+  const warn = (msg) =>
+    new TableRow({
+      children: [
+        cell(para('확인 필요', { bold: true, color: WARNING_INK }), { fill: WARNING_FILL, width: 16 }),
+        cell(para(msg, { color: WARNING_INK }), { fill: WARNING_FILL, width: 84 }),
+      ],
+    });
   if (r.source === 'template') {
-    rows.push(row('⚠ 주의', para('LLM 요약에 실패해 원문 발췌만 들어갔습니다. 직접 확인이 필요합니다.', { color: 'C00000' })));
+    rows.push(warn('LLM 요약에 실패해 원문 발췌만 들어갔습니다. 직접 확인이 필요합니다.'));
   }
   if (r.미분류) {
-    rows.push(row('⚠ 주의', para('자동 분류에 실패한 구간입니다. 원문 확인이 필요합니다.', { color: 'C00000' })));
+    rows.push(warn('자동 분류에 실패한 구간입니다. 원문 확인이 필요합니다.'));
   }
 
   return fullWidthTable(rows);
@@ -178,22 +217,22 @@ function buildVerificationSection(result) {
   const out = [
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
-      spacing: { before: 300, after: 120 },
-      children: [text('생성 검증 정보', { bold: true, size: 24 })],
+      spacing: { before: 400, after: 140 },
+      children: [text('생성 검증 정보', { bold: true, size: 24, color: INK })],
     }),
     para(`자막 원문 ${result.메타?.자막줄수 ?? '?'}줄 중 ${v.커버리지 || '?'}줄이 발언 구간으로 분류되었습니다 (${v.커버리지비율 ?? '?'}%).`),
   ];
 
   const gaps = v.미분류구간 || [];
   if (gaps.length) {
-    out.push(para(`⚠ 미분류 구간 ${gaps.length}곳 — 아래 줄 범위는 자동 분류에 실패했습니다. 원문 확인이 필요합니다.`, { color: 'C00000' }));
-    out.push(para(gaps.map((g) => `${g.시작줄}~${g.끝줄}번 줄(${g.줄수}줄)`).join(', '), { size: 18 }));
+    out.push(para(`⚠ 미분류 구간 ${gaps.length}곳 — 아래 줄 범위는 자동 분류에 실패했습니다. 원문 확인이 필요합니다.`, { color: WARNING_INK, bold: true }));
+    out.push(para(gaps.map((g) => `${g.시작줄}~${g.끝줄}번 줄(${g.줄수}줄)`).join(', '), { size: 18, color: MUTED }));
   }
 
   if (f.적용) {
     out.push(para(`키워드 필터 적용 — 등록된 ${f.그룹수}개 그룹과 관련된 ${f.대상}건만 수록했습니다. 미매칭 ${f.제외}건은 제외되었습니다.`));
     if ((f.제외목록 || []).length) {
-      out.push(para('제외된 질의: ' + f.제외목록.map((e) => e.주제 || '(주제 미상)').join(', '), { size: 18, color: '666666' }));
+      out.push(para('제외된 질의: ' + f.제외목록.map((e) => e.주제 || '(주제 미상)').join(', '), { size: 18, color: MUTED_SOFT }));
     }
   } else {
     out.push(para('키워드가 등록되지 않아 필터 없이 전체를 수록했습니다.'));
@@ -202,7 +241,7 @@ function buildVerificationSection(result) {
   out.push(
     para(
       `구간 판정 모델: ${result.메타?.구간판정모델 || '-'} · 생성 시각: ${result.메타?.생성시각 || '-'}`,
-      { size: 18, color: '666666' },
+      { size: 18, color: MUTED_SOFT },
     ),
   );
   return out;
@@ -221,20 +260,20 @@ async function buildDocx(result) {
       heading: HeadingLevel.HEADING_1,
       alignment: AlignmentType.CENTER,
       spacing: { after: 120 },
-      children: [text(`${meta.상임위 || '상임위'} 질의답변 보고`, { bold: true, size: 32 })],
+      children: [text(`${meta.상임위 || '상임위'} 질의답변 보고`, { bold: true, size: 36, color: INK })],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 300 },
+      spacing: { after: 360 },
       children: [
         text(
-          [meta.일시, meta.담당부서].filter(Boolean).join(' · ') || '',
-          { size: 20, color: '666666' },
+          [meta.일시, meta.담당부서].filter(Boolean).join('  ·  ') || '',
+          { size: 20, color: MUTED },
         ),
       ],
     }),
     para('※ 이 문서는 AI 자막을 자동 요약한 초안입니다. 결재 전 원문 대조가 필요합니다.', {
-      size: 18, color: 'C00000', italics: true,
+      size: 18, color: ERROR,
     }),
   ];
 
@@ -254,27 +293,27 @@ async function buildDocx(result) {
     children.push(
       new Paragraph({
         heading: HeadingLevel.HEADING_2,
-        spacing: { before: 300, after: 120 },
-        children: [text(`요약 (${items.length}건)`, { bold: true, size: 24 })],
+        spacing: { before: 400, after: 140 },
+        children: [text(`요약 (${items.length}건)`, { bold: true, size: 24, color: INK })],
       }),
       buildSummaryTable(items),
       new Paragraph({
         heading: HeadingLevel.HEADING_2,
-        spacing: { before: 400, after: 120 },
-        children: [text('질의별 상세', { bold: true, size: 24 })],
+        spacing: { before: 480, after: 140 },
+        children: [text('질의별 상세', { bold: true, size: 24, color: INK })],
       }),
     );
 
     items.forEach((r, i) => {
       children.push(buildDetailTable(r, i));
-      children.push(new Paragraph({ spacing: { after: 240 }, children: [text('')] }));
+      children.push(new Paragraph({ spacing: { after: 320 }, children: [text('')] }));
     });
   }
 
   children.push(...buildVerificationSection(result));
 
   const doc = new Document({
-    styles: { default: { document: { run: { font: FONT, size: 20 } } } },
+    styles: { default: { document: { run: { font: FONT, size: 20, color: BODY } } } },
     sections: [{ properties: {}, children }],
   });
 

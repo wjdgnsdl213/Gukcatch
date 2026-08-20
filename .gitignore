@@ -6,6 +6,7 @@ config.json
 # 캡처 산출물
 captions_raw*.txt
 captions_final*.txt
+raw/
 shots/
 archive/
 reports/

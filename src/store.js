@@ -16,6 +16,14 @@ const path = require('path');
 
 const DEFAULT_FLUSH_INTERVAL_MS = 30_000;
 
+// raw는 회의당 수 MB씩 쌓이고 정리본보다 8배 가까이 커서, 프로젝트 루트에
+// 두면 파일 목록이 금세 지저분해진다. 하위 폴더로 분리한다.
+// 지우지는 않는다 — 정리본은 flushClean()이 30초마다 통째로 덮어쓰는 구조라
+// LineTracker 상태에 버그가 생기면 원본이 어디에도 안 남는다. 실제로
+// ROADMAP P0-3(정리본 대량 유실)과 lines.js 재확정 버그를 잡을 때 raw와
+// 정리본을 대조한 것이 유일한 근거였다. 벽시계 시각도 raw에만 있다.
+const RAW_SUBDIR = 'raw';
+
 function pad2(n) {
   return String(n).padStart(2, '0');
 }
@@ -38,7 +46,7 @@ function defaultSessionFileNames(sessionName, baseDir = '.', date = new Date()) 
   const safe = sanitizeForFilename(sessionName);
   const ts = timestampForFilename(date);
   return {
-    raw: path.join(baseDir, `captions_raw_${safe}_${ts}.txt`),
+    raw: path.join(baseDir, RAW_SUBDIR, `captions_raw_${safe}_${ts}.txt`),
     clean: path.join(baseDir, `captions_final_${safe}_${ts}.txt`),
   };
 }
@@ -74,6 +82,9 @@ class CaptionStore {
     this.rawFile = rawFile;
     this.cleanFile = cleanFile;
     this.lineTracker = lineTracker;
+    // raw/ 하위 폴더는 물론, 호출자가 명시한 경로의 상위 폴더도 없을 수 있다.
+    // 여기서 만들지 않으면 createWriteStream이 ENOENT로 던지고 세션 전체가 죽는다.
+    fs.mkdirSync(path.dirname(rawFile), { recursive: true });
     this.rawStream = fs.createWriteStream(rawFile, { flags: 'a' });
     this.flushTimer = setInterval(() => this.flushClean(), flushIntervalMs);
     this.flushTimer.unref?.();
@@ -117,4 +128,5 @@ module.exports = {
   timestampForFilename,
   sanitizeForFilename,
   DEFAULT_FLUSH_INTERVAL_MS,
+  RAW_SUBDIR,
 };

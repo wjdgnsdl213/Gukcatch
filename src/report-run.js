@@ -26,22 +26,39 @@ const { segmentTranscript } = require('./segment');
 const { generateReport, createClient } = require('./report');
 const { loadKeywords, KeywordMatcher } = require('./keywords');
 const { buildDocx, docxFilename } = require('./docx-report');
+const { RAW_SUBDIR } = require('./store');
 
-/** baseDir에서 보고서 입력으로 쓸 수 있는 자막 파일 목록 (최신순) */
+/**
+ * 보고서 입력으로 쓸 수 있는 자막 파일 목록 (최신순).
+ * 정리본은 baseDir 바로 아래, raw는 baseDir/raw/ 아래에 있다.
+ *
+ * relPath를 함께 돌려준다 — 호출자(app-server)가 파일명만으로 경로를
+ * 조립하면 하위 폴더에 있는 raw를 못 찾는다. 목록에 있는 relPath와
+ * 정확히 일치하는 값만 받도록 해서 경로 조작도 함께 막는다.
+ */
 function listCaptionFiles(baseDir) {
   const entries = [];
-  for (const name of fs.readdirSync(baseDir)) {
-    if (!/^captions_(final|raw)_.*\.txt$/.test(name)) continue;
-    const full = path.join(baseDir, name);
-    const stat = fs.statSync(full);
-    if (!stat.isFile() || stat.size === 0) continue;
-    entries.push({
-      name,
-      kind: name.startsWith('captions_final_') ? '정리본' : 'raw',
-      bytes: stat.size,
-      mtime: stat.mtimeMs,
-    });
-  }
+
+  const scan = (dir, relPrefix) => {
+    if (!fs.existsSync(dir)) return;
+    for (const name of fs.readdirSync(dir)) {
+      if (!/^captions_(final|raw)_.*\.txt$/.test(name)) continue;
+      const full = path.join(dir, name);
+      const stat = fs.statSync(full);
+      if (!stat.isFile() || stat.size === 0) continue;
+      entries.push({
+        name,
+        relPath: relPrefix ? `${relPrefix}/${name}` : name,
+        kind: name.startsWith('captions_final_') ? '정리본' : 'raw',
+        bytes: stat.size,
+        mtime: stat.mtimeMs,
+      });
+    }
+  };
+
+  scan(baseDir, '');
+  scan(path.join(baseDir, RAW_SUBDIR), RAW_SUBDIR);
+
   // 정리본을 우선 노출한다 — raw는 중복이 있어 보고서 입력으로는 차선이다.
   return entries.sort((a, b) => b.mtime - a.mtime || a.kind.localeCompare(b.kind));
 }

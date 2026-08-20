@@ -193,13 +193,14 @@ class AppServer {
   startReport({ file, dept } = {}) {
     if (this.reportJob) throw new Error('이미 보고서를 생성 중입니다.');
 
-    // 경로 조작 방지 — 파일명만 받고 baseDir 안에 실제로 있는지 확인한다.
-    const name = path.basename(String(file || ''));
-    if (!name || name !== file) throw new Error('잘못된 파일명입니다.');
-    const available = listCaptionFiles(this.baseDir).map((f) => f.name);
-    if (!available.includes(name)) throw new Error(`자막 파일을 찾을 수 없음: ${name}`);
+    // 경로 조작 방지 — 목록에 실제로 있는 relPath와 정확히 일치할 때만 받는다.
+    // raw는 raw/ 하위에 있어 basename만으로는 경로를 조립할 수 없다.
+    const rel = String(file || '');
+    const entry = listCaptionFiles(this.baseDir).find((f) => f.relPath === rel);
+    if (!entry) throw new Error(`자막 파일을 찾을 수 없음: ${rel}`);
 
-    const inputFile = path.join(this.baseDir, name);
+    const name = entry.name;
+    const inputFile = path.join(this.baseDir, ...entry.relPath.split('/'));
     const emit = (payload) => this._sendEphemeral({ type: 'report', payload });
 
     this.reportJob = { file: name, startedAt: Date.now() };
