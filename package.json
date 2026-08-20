@@ -1,0 +1,30 @@
+{
+  "name": "natv-caption-scraper",
+  "version": "5.0.0",
+  "private": true,
+  "description": "국회 인터넷의사중계시스템 AI 자막 실시간 모니터링 도구",
+  "main": "natv-caption-scraper.js",
+  "scripts": {
+    "start": "node natv-caption-scraper.js",
+    "probe": "node tools/probe.js",
+    "report": "node tools/report.js",
+    "gui": "node tools/gui-server.js",
+    "electron": "electron electron/main.js"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0",
+    "dotenv": "^16.4.5",
+    "node-notifier": "^10.0.1",
+    "nodemailer": "^9.0.5",
+    "@anthropic-ai/sdk": "^0.117.1"
+  },
+  "devDependencies": {
+    "electron": "^43.4.0"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

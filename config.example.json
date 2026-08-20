@@ -1,0 +1,11 @@
+{
+  "_설명": "이 파일을 config.json으로 복사한 뒤 실제 상임위 URL로 채우세요. config.json이 없으면 기존 CLI(node natv-caption-scraper.js <URL>)로 단일 세션만 실행됩니다.",
+  "sessions": [
+    { "name": "보건복지위", "url": "https://assembly.webcast.go.kr/main/player.asp?xcode=58&xcgcd=..." },
+    { "name": "예결위", "url": "https://assembly.webcast.go.kr/main/player.asp?xcode=..." }
+  ],
+  "headless": false,
+  "settleMs": 1800,
+  "watchdogIdleMs": 300000,
+  "maxShotsPerSession": 200
+}

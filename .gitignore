@@ -1,0 +1,16 @@
+node_modules/
+.env
+.claude/
+config.json
+
+# 캡처 산출물
+captions_raw*.txt
+captions_final*.txt
+shots/
+archive/
+reports/
+metrics.json
+probe-report*.json
+hits*.log
+stats.html
+keywords.json
