@@ -62,6 +62,19 @@ const PAGE_HTML = `<!doctype html>
   .log-line .t { color: #6b7593; margin-right: 8px; }
   .empty { color: #6b7593; padding: 20px; text-align: center; font-size: 13px; }
   .hint { font-size: 12px; color: #6b7593; margin-top: -8px; margin-bottom: 14px; }
+  .rep { border: 1px solid #2a3350; border-left: 3px solid #4a7fd4; border-radius: 4px; padding: 12px 14px; margin-bottom: 10px; }
+  .rep.high { border-left-color: #e74c3c; }
+  .rep.unclassified { border-left-color: #d4a24a; }
+  .rep .head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .rep .subject { font-weight: 600; font-size: 15px; }
+  .rep .who { font-size: 13px; color: #8a93ab; }
+  .rep .kw { display: inline-block; background: #2a3350; padding: 1px 8px; border-radius: 10px; font-size: 12px; }
+  .rep dl { margin: 0; font-size: 13px; line-height: 1.65; }
+  .rep dt { color: #6b7593; font-size: 12px; margin-top: 8px; }
+  .rep dd { margin: 2px 0 0; }
+  .rep .foot { margin-top: 10px; font-size: 11px; color: #6b7593; }
+  .verify { font-size: 12px; padding: 10px 12px; border-radius: 4px; margin-bottom: 12px; background: #1a2033; }
+  .verify.warn { background: #3a2f1a; color: #e0c08a; }
 </style>
 </head>
 <body>
@@ -71,6 +84,7 @@ const PAGE_HTML = `<!doctype html>
     <button data-tab="sessions" class="active">세션 관리</button>
     <button data-tab="keywords">키워드 관리</button>
     <button data-tab="monitor">모니터링</button>
+    <button data-tab="report">보고서</button>
     <button data-tab="logs">로그</button>
   </nav>
   <span id="statusBadge">중지됨</span>
@@ -139,6 +153,38 @@ const PAGE_HTML = `<!doctype html>
     <div class="card">
       <h2>실시간 키워드 히트</h2>
       <div id="hitList" class="empty">아직 히트가 없습니다.</div>
+    </div>
+  </section>
+
+  <section id="panel-report" class="panel">
+    <div class="card">
+      <h2>보고 초안 생성</h2>
+      <div class="hint">회의가 끝난 뒤 실행하세요. 등록한 키워드와 관련된 질의만 보고서로 만듭니다. 감시 중에도 실행할 수 있지만 수 분이 걸립니다.</div>
+      <div class="row">
+        <div style="flex:2">
+          <label>자막 파일</label>
+          <select id="reportFile"></select>
+        </div>
+        <div style="flex:1">
+          <label>담당부서 (비우면 키워드 그룹의 부서 사용)</label>
+          <input type="text" id="reportDept" placeholder="예: 기획조정실" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" id="reportRunBtn">보고서 생성</button>
+        <button class="btn" id="reportRefreshBtn">파일 목록 새로고침</button>
+      </div>
+      <div id="reportProgress" class="hint" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <h2>생성 결과</h2>
+      <div class="row" style="margin-bottom:10px">
+        <select id="reportPicker" style="flex:2"></select>
+        <button class="btn" id="reportLoadBtn">불러오기</button>
+      </div>
+      <div id="reportSummary"></div>
+      <div id="reportList" class="empty">아직 생성된 보고서가 없습니다.</div>
     </div>
   </section>
 
@@ -360,6 +406,161 @@ const PAGE_HTML = `<!doctype html>
     }
   });
 
+  // ── 보고서 ──────────────────────────────────────────────
+  function fmtBytes(n) {
+    return n > 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + 'MB' : Math.round(n / 1024) + 'KB';
+  }
+
+  async function loadReportFiles() {
+    const data = await api('/api/report/files');
+    const sel = $('#reportFile');
+    sel.innerHTML = '';
+    if (data.files.length === 0) {
+      sel.appendChild(el('option', { value: '', text: '자막 파일이 없습니다 — 먼저 감시를 실행하세요' }));
+    }
+    data.files.forEach((f) => {
+      sel.appendChild(el('option', {
+        value: f.name,
+        text: f.name + '  (' + f.kind + ', ' + fmtBytes(f.bytes) + ')',
+      }));
+    });
+    $('#reportRunBtn').disabled = data.files.length === 0 || data.running || !data.hasApiKey;
+    if (!data.hasApiKey) {
+      $('#reportProgress').textContent = 'ANTHROPIC_API_KEY가 설정되지 않아 보고서를 생성할 수 없습니다 (.env 확인).';
+    } else if (data.running) {
+      $('#reportProgress').textContent = '보고서 생성이 진행 중입니다...';
+    }
+  }
+
+  async function loadReportList() {
+    const data = await api('/api/report/list');
+    const sel = $('#reportPicker');
+    sel.innerHTML = '';
+    if (data.reports.length === 0) {
+      sel.appendChild(el('option', { value: '', text: '생성된 보고서가 없습니다' }));
+    }
+    data.reports.forEach((r) => sel.appendChild(el('option', { value: r.name, text: r.name })));
+    $('#reportLoadBtn').disabled = data.reports.length === 0;
+  }
+
+  function renderReport(data) {
+    const summary = $('#reportSummary');
+    summary.innerHTML = '';
+    const v = data.검증 || {};
+    const f = data.키워드필터 || {};
+    const warn = (v.커버리지비율 ?? 100) < 100 || (v.미분류구간 || []).length > 0;
+    const parts = [
+      '자막 ' + (data.메타?.자막줄수 ?? '?') + '줄 / 커버리지 ' + (v.커버리지 || '?') + '줄 (' + (v.커버리지비율 ?? '?') + '%)',
+      f.적용 ? '키워드 매칭 ' + f.대상 + '건, 미매칭 제외 ' + f.제외 + '건' : '키워드 미등록 — 전체 표시',
+    ];
+    if ((v.미분류구간 || []).length) parts.push('⚠ 미분류 구간 ' + v.미분류구간.length + '곳 (사람 확인 필요)');
+    summary.appendChild(el('div', { class: 'verify' + (warn ? ' warn' : ''), text: parts.join(' · ') }));
+
+    const list = $('#reportList');
+    list.innerHTML = '';
+    const items = data.보고서 || [];
+    if (items.length === 0) {
+      list.className = 'empty';
+      list.textContent = f.적용
+        ? '등록한 키워드와 관련된 질의가 없습니다.'
+        : '생성된 항목이 없습니다.';
+      return;
+    }
+    list.className = '';
+    items.forEach((r) => {
+      const isHigh = (r.매칭키워드 || []).some((k) => k.중요도 === 'high');
+      const card = el('div', { class: 'rep' + (r.미분류 ? ' unclassified' : isHigh ? ' high' : '') });
+
+      const head = el('div', { class: 'head' });
+      head.appendChild(el('span', { class: 'subject', text: r.주제 || '(주제 미상)' }));
+      head.appendChild(el('span', { class: 'who', text: r.의원명 + ' → ' + r.답변자 }));
+      (r.매칭키워드 || []).forEach((k) => head.appendChild(el('span', { class: 'kw', text: k.그룹 + ' · ' + k.패턴 })));
+      card.appendChild(head);
+
+      const dl = el('dl');
+      const add = (term, val) => {
+        if (!val) return;
+        dl.appendChild(el('dt', { text: term }));
+        dl.appendChild(el('dd', { text: val }));
+      };
+      add('질의요지', r.질의요지);
+      add('답변내용', r.답변내용);
+      add('시사점', r.시사점);
+      card.appendChild(dl);
+
+      const q = (r.근거줄?.질의 || []).map((x) => x.시작줄 + '-' + x.끝줄).join(', ');
+      const a = (r.근거줄?.답변 || []).map((x) => x.시작줄 + '-' + x.끝줄).join(', ');
+      card.appendChild(el('div', {
+        class: 'foot',
+        text: '영상 ' + (r.영상시점 || '--:--:--') + ' · 근거 줄 [질의 ' + (q || '없음') + ' / 답변 ' + (a || '없음') + ']'
+          + (r.담당부서 ? ' · ' + r.담당부서 : '')
+          + (r.source === 'template' ? ' · ⚠ LLM 요약 실패(원문 발췌)' : ''),
+      }));
+      list.appendChild(card);
+    });
+  }
+
+  function renderReportProgress(p) {
+    const box = $('#reportProgress');
+    if (p.phase === 'start') box.textContent = '시작: ' + p.파일;
+    else if (p.phase === 'loaded') box.textContent = '자막 ' + p.줄수 + '줄 로드됨';
+    else if (p.phase === 'segment-start') box.textContent = '[패스 1] 발언 구간 판정 중... (수 분 걸릴 수 있습니다)';
+    else if (p.phase === 'segment-done') {
+      box.textContent = '[패스 1] 완료 — 구간 ' + p.구간수 + '개, 질의-답변 ' + p.쌍수 + '건, 커버리지 ' + p.커버리지 + '줄'
+        + (p.미분류 ? ' (미분류 ' + p.미분류 + '곳)' : '');
+    } else if (p.phase === 'filter-done') {
+      box.textContent = p.필터적용
+        ? '[키워드 필터] 대상 ' + p.대상 + '건, 제외 ' + p.제외 + '건'
+        : '[키워드 필터] 등록된 키워드가 없어 전체를 생성합니다';
+    } else if (p.phase === 'summarize') {
+      box.textContent = '[패스 2] 요약 중 ' + p.현재 + '/' + p.전체 + ' — ' + (p.주제 || '');
+    } else if (p.phase === 'result') {
+      box.textContent = '완료 — ' + (p.result.보고서 || []).length + '건 생성됨';
+      renderReport(p.result);
+      $('#reportRunBtn').disabled = false;
+      loadReportList().catch(() => {});
+      showBanner('보고서 생성이 완료되었습니다.');
+    } else if (p.phase === 'error') {
+      box.textContent = '실패: ' + p.message;
+      $('#reportRunBtn').disabled = false;
+      showBanner('보고서 생성 실패: ' + p.message, true);
+    }
+  }
+
+  $('#reportRunBtn').addEventListener('click', async () => {
+    const file = $('#reportFile').value;
+    if (!file) return showBanner('자막 파일을 선택하세요.', true);
+    $('#reportRunBtn').disabled = true;
+    $('#reportProgress').textContent = '요청 중...';
+    try {
+      await api('/api/report/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file, dept: $('#reportDept').value.trim() || null }),
+      });
+    } catch (e) {
+      $('#reportProgress').textContent = '실패: ' + e.message;
+      $('#reportRunBtn').disabled = false;
+      showBanner(e.message, true);
+    }
+  });
+
+  $('#reportRefreshBtn').addEventListener('click', () => {
+    Promise.all([loadReportFiles(), loadReportList()])
+      .then(() => showBanner('목록을 새로고침했습니다.'))
+      .catch((e) => showBanner(e.message, true));
+  });
+
+  $('#reportLoadBtn').addEventListener('click', async () => {
+    const name = $('#reportPicker').value;
+    if (!name) return;
+    try {
+      renderReport(await api('/api/report/view/' + encodeURIComponent(name)));
+    } catch (e) {
+      showBanner(e.message, true);
+    }
+  });
+
   // ── 히트/로그 실시간 스트림 ──────────────────────────────────────────────
   function renderHit(hit) {
     const list = $('#hitList');
@@ -408,14 +609,21 @@ const PAGE_HTML = `<!doctype html>
         renderLog(msg.payload);
       } else if (msg.type === 'status') {
         applyStatus(msg.payload);
+      } else if (msg.type === 'report') {
+        renderReportProgress(msg.payload);
       }
     };
     es.onerror = () => { /* 브라우저가 자동 재연결 시도함 */ };
   }
 
   // ── 초기화 ──────────────────────────────────────────────
-  Promise.all([loadConfig(), loadKeywords(), api('/api/monitor/status').then(applyStatus)])
-    .catch((e) => showBanner('초기 로드 실패: ' + e.message, true));
+  Promise.all([
+    loadConfig(),
+    loadKeywords(),
+    loadReportFiles(),
+    loadReportList(),
+    api('/api/monitor/status').then(applyStatus),
+  ]).catch((e) => showBanner('초기 로드 실패: ' + e.message, true));
   connectEvents();
 })();
 </script>

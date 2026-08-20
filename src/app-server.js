@@ -16,6 +16,7 @@
 
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 const { serveFromDir } = require('./static-file');
 const { runAll } = require('./runner');
 const {
@@ -25,6 +26,7 @@ const {
   saveKeywordsFile,
 } = require('./settings-store');
 const { PAGE_HTML } = require('./control-panel-page');
+const { runReportPipeline, listCaptionFiles } = require('./report-run');
 
 const MAX_CACHED_EVENTS = 300;
 const MAX_BODY_BYTES = 1024 * 1024; // 1MB — 설정 파일 하나 저장하는 데 이 이상은 필요 없다
@@ -63,9 +65,12 @@ class AppServer {
     this.shotsDir = path.join(baseDir, 'shots');
     this.archiveDir = path.join(baseDir, 'archive');
 
+    this.reportsDir = path.join(baseDir, 'reports');
+
     this.clients = new Set(); // SSE 응답 객체들
     this.recentEvents = []; // 재접속 시 최근 이벤트 재전송용
     this.runtime = null; // runAll() 결과 — 실행 중일 때만 존재
+    this.reportJob = null; // 진행 중인 보고서 생성 작업 (동시 실행 방지)
 
     this.server = http.createServer((req, res) => {
       this._handle(req, res).catch((err) => {
@@ -100,6 +105,21 @@ class AppServer {
   _emit(event) {
     this.recentEvents.push(event);
     if (this.recentEvents.length > MAX_CACHED_EVENTS) this.recentEvents.shift();
+    this._send(event);
+  }
+
+  /**
+   * 재접속 재전송 캐시에 남기지 않고 지금 붙어 있는 클라이언트에만 보낸다.
+   * 보고서 진행/결과 이벤트용 — 결과 JSON은 수백 KB까지 커질 수 있어
+   * 캐시에 넣으면 새로 접속하는 브라우저마다 통째로 다시 받게 되고,
+   * 진행 이벤트는 건수가 많아 히트/로그 캐시를 밀어낸다. 결과물은 어차피
+   * reports/에 저장되므로 목록에서 다시 불러올 수 있다.
+   */
+  _sendEphemeral(event) {
+    this._send(event);
+  }
+
+  _send(event) {
     const data = `data: ${JSON.stringify(event)}\n\n`;
     for (const res of this.clients) res.write(data);
   }
@@ -161,6 +181,73 @@ class AppServer {
     this.broadcastLog({ level: 'info', message: '감시 종료됨' });
     this._broadcastStatus();
     return this.getStatus();
+  }
+
+  // ── 보고서 생성 ──────────────────────────────────────────────────────
+  /**
+   * 보고서 생성을 백그라운드로 시작한다. 회의 하나에 Claude 호출이 여러 번
+   * 일어나 수 분이 걸리므로 HTTP 응답을 붙잡아두지 않고, 진행 상황은 기존
+   * SSE 채널로 흘려보낸다 (감시 로그와 같은 경로).
+   */
+  startReport({ file, dept } = {}) {
+    if (this.reportJob) throw new Error('이미 보고서를 생성 중입니다.');
+
+    // 경로 조작 방지 — 파일명만 받고 baseDir 안에 실제로 있는지 확인한다.
+    const name = path.basename(String(file || ''));
+    if (!name || name !== file) throw new Error('잘못된 파일명입니다.');
+    const available = listCaptionFiles(this.baseDir).map((f) => f.name);
+    if (!available.includes(name)) throw new Error(`자막 파일을 찾을 수 없음: ${name}`);
+
+    const inputFile = path.join(this.baseDir, name);
+    const emit = (payload) => this._sendEphemeral({ type: 'report', payload });
+
+    this.reportJob = { file: name, startedAt: Date.now() };
+    emit({ phase: 'start', 파일: name });
+    this.broadcastLog({ level: 'info', message: `보고서 생성 시작 — ${name}` });
+
+    // 의도적으로 await하지 않는다. 실패는 SSE로 통지되고 reportJob이 풀린다.
+    runReportPipeline({
+      inputFile,
+      dept: dept || null,
+      keywordsPath: this.keywordsPath,
+      outDir: this.reportsDir,
+      onProgress: emit,
+    })
+      .then((result) => {
+        this.broadcastLog({
+          level: 'info',
+          message: `보고서 생성 완료 — ${result.보고서.length}건 (${path.basename(result.메타.저장경로 || '')})`,
+        });
+        emit({ phase: 'result', result });
+      })
+      .catch((err) => {
+        this.broadcastLog({ level: 'error', message: `보고서 생성 실패: ${err.message}` });
+        emit({ phase: 'error', message: err.message });
+      })
+      .finally(() => {
+        this.reportJob = null;
+      });
+
+    return { started: true, file: name };
+  }
+
+  /** 생성된 보고서 파일 목록 (최신순) */
+  listReports() {
+    if (!fs.existsSync(this.reportsDir)) return [];
+    return fs
+      .readdirSync(this.reportsDir)
+      .filter((n) => n.endsWith('.json'))
+      .map((n) => ({ name: n, mtime: fs.statSync(path.join(this.reportsDir, n)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime);
+  }
+
+  readReport(name) {
+    const safe = path.basename(String(name || ''));
+    const full = path.join(this.reportsDir, safe);
+    if (!safe.endsWith('.json') || !fs.existsSync(full)) {
+      throw new Error(`보고서를 찾을 수 없음: ${safe}`);
+    }
+    return JSON.parse(fs.readFileSync(full, 'utf8'));
   }
 
   _json(res, status, data) {
@@ -231,6 +318,28 @@ class AppServer {
     if (p === '/api/monitor/stop' && req.method === 'POST') {
       const status = await this.stopMonitoring();
       return this._json(res, 200, status);
+    }
+
+    if (p === '/api/report/files' && req.method === 'GET') {
+      return this._json(res, 200, {
+        files: listCaptionFiles(this.baseDir),
+        running: Boolean(this.reportJob),
+        hasApiKey: Boolean(process.env.ANTHROPIC_API_KEY),
+      });
+    }
+
+    if (p === '/api/report/run' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      return this._json(res, 200, this.startReport(body));
+    }
+
+    if (p === '/api/report/list' && req.method === 'GET') {
+      return this._json(res, 200, { reports: this.listReports() });
+    }
+
+    if (p.startsWith('/api/report/view/') && req.method === 'GET') {
+      const name = decodeURIComponent(p.slice('/api/report/view/'.length));
+      return this._json(res, 200, this.readReport(name));
     }
 
     res.writeHead(404);
