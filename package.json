@@ -12,11 +12,12 @@
     "electron": "electron electron/main.js"
   },
   "dependencies": {
-    "playwright": "^1.49.0",
+    "@anthropic-ai/sdk": "^0.117.1",
+    "docx": "^9.7.1",
     "dotenv": "^16.4.5",
     "node-notifier": "^10.0.1",
     "nodemailer": "^9.0.5",
-    "@anthropic-ai/sdk": "^0.117.1"
+    "playwright": "^1.49.0"
   },
   "devDependencies": {
     "electron": "^43.4.0"

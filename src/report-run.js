@@ -25,6 +25,7 @@ const { loadTranscript, sliceRanges } = require('./transcript');
 const { segmentTranscript } = require('./segment');
 const { generateReport, createClient } = require('./report');
 const { loadKeywords, KeywordMatcher } = require('./keywords');
+const { buildDocx, docxFilename } = require('./docx-report');
 
 /** baseDir에서 보고서 입력으로 쓸 수 있는 자막 파일 목록 (최신순) */
 function listCaptionFiles(baseDir) {
@@ -193,15 +194,30 @@ async function runReportPipeline({
   };
 
   let outPath = null;
+  let docxPath = null;
   if (outDir) {
     fs.mkdirSync(outDir, { recursive: true });
     const safe = String(sessionName).replace(/[\\/:*?"<>|]/g, '_');
     outPath = path.join(outDir, `report_${safe}_${Date.now()}.json`);
+
+    // 워드 파일명은 JSON과 짝을 이루게 한다 — GUI에서 JSON을 골라
+    // 워드를 내려받을 때 이름으로 찾을 수 있어야 한다.
+    docxPath = outPath.replace(/\.json$/, '.docx');
+    result.메타.워드파일 = path.basename(docxPath);
+
     fs.writeFileSync(outPath, JSON.stringify(result, null, 2), 'utf8');
     result.메타.저장경로 = outPath;
+
+    // 워드 생성 실패가 JSON까지 날리면 안 된다 — JSON을 먼저 쓰고 감싼다.
+    try {
+      fs.writeFileSync(docxPath, await buildDocx(result));
+    } catch (err) {
+      docxPath = null;
+      onProgress({ phase: 'docx-error', message: err.message });
+    }
   }
 
-  onProgress({ phase: 'done', 건수: reports.length, 저장경로: outPath });
+  onProgress({ phase: 'done', 건수: reports.length, 저장경로: outPath, 워드: docxPath });
   return result;
 }
 
@@ -210,4 +226,5 @@ module.exports = {
   listCaptionFiles,
   dateFromFilename,
   sessionFromFilename,
+  docxFilename,
 };

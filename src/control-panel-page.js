@@ -182,6 +182,7 @@ const PAGE_HTML = `<!doctype html>
       <div class="row" style="margin-bottom:10px">
         <select id="reportPicker" style="flex:2"></select>
         <button class="btn" id="reportLoadBtn">불러오기</button>
+        <button class="btn primary" id="reportDocxBtn">워드로 저장</button>
       </div>
       <div id="reportSummary"></div>
       <div id="reportList" class="empty">아직 생성된 보고서가 없습니다.</div>
@@ -441,6 +442,7 @@ const PAGE_HTML = `<!doctype html>
     }
     data.reports.forEach((r) => sel.appendChild(el('option', { value: r.name, text: r.name })));
     $('#reportLoadBtn').disabled = data.reports.length === 0;
+    $('#reportDocxBtn').disabled = data.reports.length === 0;
   }
 
   function renderReport(data) {
@@ -549,6 +551,14 @@ const PAGE_HTML = `<!doctype html>
     Promise.all([loadReportFiles(), loadReportList()])
       .then(() => showBanner('목록을 새로고침했습니다.'))
       .catch((e) => showBanner(e.message, true));
+  });
+
+  // 브라우저가 직접 받게 한다 — fetch로 받아 blob URL을 만들면 파일명이
+  // 유실되고, Content-Disposition의 한글 파일명도 못 쓴다.
+  $('#reportDocxBtn').addEventListener('click', () => {
+    const name = $('#reportPicker').value;
+    if (!name) return showBanner('보고서를 선택하세요.', true);
+    window.location.href = '/api/report/docx/' + encodeURIComponent(name);
   });
 
   $('#reportLoadBtn').addEventListener('click', async () => {

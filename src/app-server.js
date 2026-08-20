@@ -27,6 +27,7 @@ const {
 } = require('./settings-store');
 const { PAGE_HTML } = require('./control-panel-page');
 const { runReportPipeline, listCaptionFiles } = require('./report-run');
+const { buildDocx, docxFilename } = require('./docx-report');
 
 const MAX_CACHED_EVENTS = 300;
 const MAX_BODY_BYTES = 1024 * 1024; // 1MB — 설정 파일 하나 저장하는 데 이 이상은 필요 없다
@@ -250,6 +251,29 @@ class AppServer {
     return JSON.parse(fs.readFileSync(full, 'utf8'));
   }
 
+  /**
+   * 보고서의 워드 파일을 돌려준다. 생성 당시 함께 저장되지만, 예전 보고서나
+   * 워드 생성만 실패한 경우를 위해 없으면 그 자리에서 만들어 캐시한다.
+   * @returns {Promise<{buffer: Buffer, filename: string}>}
+   */
+  async getReportDocx(name) {
+    const safe = path.basename(String(name || ''));
+    if (!safe.endsWith('.json')) throw new Error(`잘못된 보고서 이름: ${safe}`);
+    const jsonPath = path.join(this.reportsDir, safe);
+    if (!fs.existsSync(jsonPath)) throw new Error(`보고서를 찾을 수 없음: ${safe}`);
+
+    const result = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    const docxPath = jsonPath.replace(/\.json$/, '.docx');
+    const filename = docxFilename(result);
+
+    if (fs.existsSync(docxPath)) {
+      return { buffer: fs.readFileSync(docxPath), filename };
+    }
+    const buffer = await buildDocx(result);
+    fs.writeFileSync(docxPath, buffer);
+    return { buffer, filename };
+  }
+
   _json(res, status, data) {
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(data));
@@ -340,6 +364,19 @@ class AppServer {
     if (p.startsWith('/api/report/view/') && req.method === 'GET') {
       const name = decodeURIComponent(p.slice('/api/report/view/'.length));
       return this._json(res, 200, this.readReport(name));
+    }
+
+    if (p.startsWith('/api/report/docx/') && req.method === 'GET') {
+      const name = decodeURIComponent(p.slice('/api/report/docx/'.length));
+      const { buffer, filename } = await this.getReportDocx(name);
+      // filename*=UTF-8''… 로 한글 파일명을 보존한다. filename= 만 쓰면
+      // 브라우저가 latin-1로 해석해 깨진다.
+      res.writeHead(200, {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+        'Content-Length': buffer.length,
+      });
+      return res.end(buffer);
     }
 
     res.writeHead(404);

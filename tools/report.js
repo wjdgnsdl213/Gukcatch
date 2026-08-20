@@ -61,6 +61,9 @@ function printProgress(p) {
     case 'summarize':
       process.stdout.write(`  [${p.현재}/${p.전체}] ${p.주제}                    \r`);
       break;
+    case 'docx-error':
+      console.log(`  ⚠ 워드 파일 생성 실패: ${p.message} (JSON은 정상 저장됨)`);
+      break;
     case 'done':
       console.log(`  ${p.건수}/${p.건수} 완료                              `);
       break;
@@ -81,7 +84,10 @@ function printProgress(p) {
     onProgress: printProgress,
   });
 
-  console.log('\n저장:', result.메타.저장경로);
+  console.log('\n저장(JSON):', result.메타.저장경로);
+  if (result.메타.워드파일) {
+    console.log('저장(워드):', path.join(path.dirname(result.메타.저장경로), result.메타.워드파일));
+  }
 
   const bySource = result.보고서.reduce((acc, r) => {
     acc[r.source] = (acc[r.source] || 0) + 1;
