@@ -9,72 +9,368 @@ const PAGE_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8" />
 <title>국회 자막 모니터 — 제어판</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
 <style>
+  /* ── 디자인 토큰 (DESIGN-cal.md) ────────────────────────────────────
+     Cal.com 디자인 시스템. 흰 캔버스 + 근접-검정 CTA + 연회색 카드.
+     색은 전부 여기서만 정의한다 — 나중에 팔레트만 갈아끼울 수 있게.
+
+     원본 스펙은 마케팅 페이지용이라 섹션 리듬이 96px인데, 제어판은
+     정보 밀도가 높은 앱 UI라 그대로 쓰면 스크롤만 길어진다. 카드 간격은
+     spacing.lg(24px), 카드 내부 여백은 spacing.xl(32px)로 조였다.
+     그 외 색·타이포·라운드·컴포넌트 규칙은 스펙 그대로 따른다.
+
+     폰트는 Inter를 CDN에서 받되 시스템 스택으로 폴백한다. 이 도구는
+     회의 중 오프라인에서도 떠야 하는데, Windows의 Segoe UI가 Inter와
+     성격이 가까워 폰트를 못 받아도 레이아웃이 깨지지 않는다. */
+  :root {
+    /* colors */
+    --primary: #111111;
+    --primary-active: #242424;
+    --primary-disabled: #e5e7eb;
+    --ink: #111111;
+    --body: #374151;
+    --muted: #6b7280;
+    --muted-soft: #898989;
+    --hairline: #e5e7eb;
+    --hairline-soft: #f3f4f6;
+    --canvas: #ffffff;
+    --surface-soft: #f8f9fa;
+    --surface-card: #f5f5f5;
+    --surface-strong: #e5e7eb;
+    --on-primary: #ffffff;
+    --brand-accent: #3b82f6;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --badge-violet: #8b5cf6;
+
+    /* rounded */
+    --r-sm: 6px;
+    --r-md: 8px;
+    --r-lg: 12px;
+    --r-pill: 9999px;
+
+    /* spacing */
+    --s-xxs: 4px;
+    --s-xs: 8px;
+    --s-sm: 12px;
+    --s-md: 16px;
+    --s-lg: 24px;
+    --s-xl: 32px;
+
+    /* type */
+    --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", Roboto, sans-serif;
+    --font-code: "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+    /* elevation — 스펙의 soft/modern 두 단계만 쓴다 */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, "Malgun Gothic", sans-serif; margin: 0; background: #0f1420; color: #e6e8ee; }
-  header { padding: 14px 24px; background: #171d2e; border-bottom: 1px solid #2a3350; display: flex; align-items: center; gap: 24px; position: sticky; top: 0; z-index: 10; }
-  header h1 { margin: 0; font-size: 16px; white-space: nowrap; }
-  nav { display: flex; gap: 4px; flex: 1; }
-  nav button { background: none; border: none; color: #8a93ab; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-  nav button.active { background: #2a3350; color: #fff; }
-  #statusBadge { font-size: 12px; padding: 4px 10px; border-radius: 12px; background: #2a3350; }
-  #statusBadge.running { background: #1e6b3f; color: #fff; }
-  #monitorBtn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
-  #monitorBtn.start { background: #27ae60; color: #fff; }
-  #monitorBtn.stop { background: #c0392b; color: #fff; }
-  main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+
+  body {
+    font-family: var(--font-ui);
+    font-size: 16px;
+    line-height: 1.5;
+    margin: 0;
+    background: var(--canvas);
+    color: var(--body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── top-nav (64px, 흰 캔버스, hairline 마감) ────────────────────── */
+  header {
+    height: 64px;
+    padding: 0 var(--s-lg);
+    background: var(--canvas);
+    border-bottom: 1px solid var(--hairline);
+    display: flex;
+    align-items: center;
+    gap: var(--s-lg);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  /* nav-pill-group — 스펙의 시그니처 컴포넌트(pill 안의 pill) */
+  nav {
+    display: flex;
+    gap: var(--s-xxs);
+    flex: 1;
+    background: var(--surface-soft);
+    border-radius: var(--r-pill);
+    padding: 6px;
+    width: fit-content;
+    flex-grow: 0;
+  }
+  nav button {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: var(--s-xs) 14px;
+    border-radius: var(--r-md);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  nav button.active {
+    background: var(--canvas);
+    color: var(--ink);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .spacer { flex: 1; }
+
+  #statusBadge {
+    font-size: 13px;
+    font-weight: 500;
+    padding: var(--s-xxs) var(--s-sm);
+    border-radius: var(--r-pill);
+    background: var(--surface-card);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  #statusBadge.running {
+    background: color-mix(in srgb, var(--success) 12%, white);
+    color: #047857;
+  }
+
+  /* ── 버튼 ────────────────────────────────────────────────────────
+     스펙상 액션 레이어는 모노크롬이다. 다만 "감시 중지"는 되돌리기
+     번거로운 동작이라 secondary 형태에 error 색 테두리/글자만 입혔다 —
+     배경까지 빨갛게 칠하면 스펙의 모노크롬 원칙에서 너무 멀어진다. */
+  #monitorBtn, .btn {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
+    border-radius: var(--r-md);
+    cursor: pointer;
+    padding: var(--s-sm) 20px;
+    height: 40px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    transition: background-color 0.12s ease;
+  }
+  #monitorBtn.start { background: var(--primary); color: var(--on-primary); }
+  #monitorBtn.start:active { background: var(--primary-active); }
+  #monitorBtn.stop {
+    background: var(--canvas);
+    color: var(--error);
+    border-color: var(--error);
+  }
+  .btn {
+    background: var(--canvas);
+    color: var(--ink);
+    border-color: var(--hairline);
+  }
+  .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+  .btn.primary:active { background: var(--primary-active); }
+  .btn.danger { background: var(--canvas); color: var(--error); border-color: var(--hairline); }
+  .btn.small { padding: var(--s-xs) var(--s-sm); height: 32px; font-size: 13px; }
+  .btn:disabled, #monitorBtn:disabled {
+    background: var(--primary-disabled);
+    color: var(--muted);
+    border-color: transparent;
+    cursor: not-allowed;
+  }
+
+  /* ── 레이아웃 ───────────────────────────────────────────────────── */
+  main { padding: var(--s-xl) var(--s-lg); max-width: 1200px; margin: 0 auto; }
   .panel { display: none; }
   .panel.active { display: block; }
-  .card { background: #171d2e; border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; border: 1px solid #232a41; }
-  .card h2 { font-size: 14px; margin: 0 0 14px 0; color: #c9cfdd; }
-  label { display: block; font-size: 12px; color: #8a93ab; margin-bottom: 4px; }
-  input[type=text], input[type=number], select { width: 100%; background: #0f1420; border: 1px solid #2a3350; color: #e6e8ee; padding: 8px 10px; border-radius: 6px; font-size: 13px; }
-  input[type=checkbox] { width: auto; margin-right: 6px; }
-  .row { display: flex; gap: 12px; margin-bottom: 12px; align-items: end; }
+
+  /* feature-card: 연회색 면, 12px 라운드 */
+  .card {
+    background: var(--surface-card);
+    border-radius: var(--r-lg);
+    padding: var(--s-xl);
+    margin-bottom: var(--s-lg);
+  }
+  .card h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 var(--s-md) 0;
+    color: var(--ink);
+    letter-spacing: -0.2px;
+  }
+
+  /* ── 폼 ─────────────────────────────────────────────────────────── */
+  label { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: var(--s-xxs); }
+  input[type=text], input[type=number], select {
+    width: 100%;
+    height: 40px;
+    background: var(--canvas);
+    border: 1px solid var(--hairline);
+    color: var(--ink);
+    padding: 10px 14px;
+    border-radius: var(--r-md);
+    font-family: inherit;
+    font-size: 15px;
+  }
+  input[type=text]:focus, input[type=number]:focus, select:focus {
+    outline: none;
+    border-color: var(--ink);
+  }
+  input[type=checkbox] { width: auto; margin-right: var(--s-xs); accent-color: var(--primary); }
+  .row { display: flex; gap: var(--s-sm); margin-bottom: var(--s-sm); align-items: end; }
   .row > div { flex: 1; }
-  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-  th, td { text-align: left; padding: 6px 8px; font-size: 13px; border-bottom: 1px solid #232a41; }
-  th { color: #8a93ab; font-weight: 500; font-size: 12px; }
-  .btn { background: #2a3350; color: #e6e8ee; border: none; padding: 7px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-  .btn.primary { background: #2f6fed; color: #fff; }
-  .btn.danger { background: #7a2b2b; color: #fff; }
-  .btn.small { padding: 4px 8px; font-size: 12px; }
-  .group-card { border: 1px solid #232a41; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; background: #0f1420; }
-  .group-head { display: flex; gap: 10px; margin-bottom: 10px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-sm); margin-bottom: var(--s-md); }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: var(--s-sm); }
+  th, td { text-align: left; padding: var(--s-xs); font-size: 14px; border-bottom: 1px solid var(--hairline); }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+
+  /* 키워드 그룹 — 흰 카드 + hairline (feature-icon-card) */
+  .group-card {
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-lg);
+    padding: var(--s-lg);
+    margin-bottom: var(--s-sm);
+    background: var(--canvas);
+  }
+  .group-head { display: flex; gap: var(--s-xs); margin-bottom: var(--s-sm); }
   .group-head input, .group-head select { flex: 1; }
-  .patterns { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-  .chip { background: #2a3350; padding: 4px 8px; border-radius: 12px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
-  .chip button { background: none; border: none; color: #8a93ab; cursor: pointer; font-size: 13px; line-height: 1; padding: 0; }
-  .pattern-input { display: flex; gap: 6px; }
+  .patterns { display: flex; flex-wrap: wrap; gap: var(--s-xxs); margin-bottom: var(--s-xs); }
+  .chip {
+    background: var(--surface-card);
+    color: var(--ink);
+    padding: var(--s-xxs) var(--s-sm);
+    border-radius: var(--r-pill);
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: var(--s-xxs);
+  }
+  .chip button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+  .pattern-input { display: flex; gap: var(--s-xxs); }
   .pattern-input input { flex: 1; }
-  .banner { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; display: none; }
-  .banner.ok { background: #1e6b3f; display: block; }
-  .banner.err { background: #7a2b2b; display: block; }
-  .hit { background: #171d2e; border: 1px solid #232a41; border-left: 4px solid #3498db; border-radius: 6px; padding: 12px 16px; margin-bottom: 10px; }
-  .hit.high { border-left-color: #e74c3c; }
-  .hit .meta { font-size: 12px; color: #8a93ab; margin-bottom: 6px; }
-  .hit .kw { display: inline-block; background: #2a3350; padding: 1px 8px; border-radius: 10px; font-size: 12px; margin-right: 6px; }
-  .hit .ctx { font-size: 13px; color: #8a93ab; margin-top: 6px; white-space: pre-line; }
-  .hit img { display: block; margin-top: 8px; max-width: 480px; max-height: 270px; border-radius: 4px; border: 1px solid #2a3350; }
-  .log-line { font-family: "Consolas", monospace; font-size: 12px; padding: 3px 0; border-bottom: 1px solid #1a2033; }
-  .log-line.error { color: #ff8080; }
-  .log-line .t { color: #6b7593; margin-right: 8px; }
-  .empty { color: #6b7593; padding: 20px; text-align: center; font-size: 13px; }
-  .hint { font-size: 12px; color: #6b7593; margin-top: -8px; margin-bottom: 14px; }
-  .rep { border: 1px solid #2a3350; border-left: 3px solid #4a7fd4; border-radius: 4px; padding: 12px 14px; margin-bottom: 10px; }
-  .rep.high { border-left-color: #e74c3c; }
-  .rep.unclassified { border-left-color: #d4a24a; }
-  .rep .head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
-  .rep .subject { font-weight: 600; font-size: 15px; }
-  .rep .who { font-size: 13px; color: #8a93ab; }
-  .rep .kw { display: inline-block; background: #2a3350; padding: 1px 8px; border-radius: 10px; font-size: 12px; }
-  .rep dl { margin: 0; font-size: 13px; line-height: 1.65; }
-  .rep dt { color: #6b7593; font-size: 12px; margin-top: 8px; }
-  .rep dd { margin: 2px 0 0; }
-  .rep .foot { margin-top: 10px; font-size: 11px; color: #6b7593; }
-  .verify { font-size: 12px; padding: 10px 12px; border-radius: 4px; margin-bottom: 12px; background: #1a2033; }
-  .verify.warn { background: #3a2f1a; color: #e0c08a; }
+
+  /* ── 알림 배너 ──────────────────────────────────────────────────── */
+  .banner {
+    padding: var(--s-sm) var(--s-md);
+    border-radius: var(--r-md);
+    font-size: 14px;
+    margin-bottom: var(--s-md);
+    display: none;
+    border: 1px solid transparent;
+  }
+  .banner.ok {
+    display: block;
+    background: color-mix(in srgb, var(--success) 10%, white);
+    border-color: color-mix(in srgb, var(--success) 30%, white);
+    color: #047857;
+  }
+  .banner.err {
+    display: block;
+    background: color-mix(in srgb, var(--error) 8%, white);
+    border-color: color-mix(in srgb, var(--error) 30%, white);
+    color: #b91c1c;
+  }
+
+  /* ── 키워드 히트 (product-mockup-card: 흰 면 + hairline) ─────────── */
+  .hit {
+    background: var(--canvas);
+    border: 1px solid var(--hairline);
+    border-left: 3px solid var(--brand-accent);
+    border-radius: var(--r-lg);
+    padding: var(--s-lg);
+    margin-bottom: var(--s-sm);
+  }
+  .hit.high { border-left-color: var(--error); }
+  .hit .meta { font-size: 13px; color: var(--muted); margin-bottom: var(--s-xs); }
+  .hit .kw {
+    display: inline-block;
+    background: var(--surface-card);
+    color: var(--ink);
+    padding: 2px var(--s-sm);
+    border-radius: var(--r-pill);
+    font-size: 13px;
+    font-weight: 500;
+    margin-right: var(--s-xxs);
+  }
+  .hit .ctx { font-size: 14px; color: var(--muted); margin-top: var(--s-xs); white-space: pre-line; }
+  .hit img { display: block; margin-top: var(--s-xs); max-width: 480px; max-height: 270px; border-radius: var(--r-md); border: 1px solid var(--hairline); }
+
+  /* ── 로그 ───────────────────────────────────────────────────────── */
+  .log-line {
+    font-family: var(--font-code);
+    font-size: 13px;
+    padding: var(--s-xxs) 0;
+    border-bottom: 1px solid var(--hairline-soft);
+    color: var(--body);
+  }
+  .log-line.error { color: var(--error); }
+  .log-line .t { color: var(--muted-soft); margin-right: var(--s-xs); }
+
+  .empty { color: var(--muted-soft); padding: var(--s-xl); text-align: center; font-size: 14px; }
+  .hint { font-size: 13px; font-weight: 500; color: var(--muted); margin-top: -8px; margin-bottom: var(--s-md); }
+
+  /* ── 보고서 항목 ────────────────────────────────────────────────── */
+  .rep {
+    background: var(--canvas);
+    border: 1px solid var(--hairline);
+    border-left: 3px solid var(--ink);
+    border-radius: var(--r-lg);
+    padding: var(--s-lg);
+    margin-bottom: var(--s-sm);
+  }
+  .rep.high { border-left-color: var(--error); }
+  .rep.unclassified { border-left-color: var(--warning); }
+  .rep .head { display: flex; align-items: baseline; gap: var(--s-xs); flex-wrap: wrap; margin-bottom: var(--s-sm); }
+  .rep .subject { font-weight: 600; font-size: 18px; color: var(--ink); letter-spacing: -0.2px; }
+  .rep .who { font-size: 14px; color: var(--muted); }
+  .rep .kw {
+    display: inline-block;
+    background: var(--surface-card);
+    color: var(--ink);
+    padding: 2px var(--s-sm);
+    border-radius: var(--r-pill);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .rep dl { margin: 0; font-size: 15px; line-height: 1.6; }
+  .rep dt { color: var(--muted); font-size: 13px; font-weight: 500; margin-top: var(--s-sm); }
+  .rep dd { margin: 2px 0 0; color: var(--body); }
+  .rep .foot { margin-top: var(--s-sm); font-size: 13px; color: var(--muted-soft); font-family: var(--font-code); }
+
+  .verify {
+    font-size: 14px;
+    padding: var(--s-sm) var(--s-md);
+    border-radius: var(--r-md);
+    margin-bottom: var(--s-md);
+    background: var(--surface-soft);
+    border: 1px solid var(--hairline);
+    color: var(--body);
+  }
+  .verify.warn {
+    background: color-mix(in srgb, var(--warning) 10%, white);
+    border-color: color-mix(in srgb, var(--warning) 35%, white);
+    color: #92400e;
+  }
+
+  @media (max-width: 900px) {
+    .grid4 { grid-template-columns: repeat(2, 1fr); }
+    header { gap: var(--s-sm); padding: 0 var(--s-md); }
+    header h1 { font-size: 16px; }
+    main { padding: var(--s-lg) var(--s-md); }
+    .card { padding: var(--s-lg); }
+  }
 </style>
 </head>
 <body>
@@ -87,6 +383,7 @@ const PAGE_HTML = `<!doctype html>
     <button data-tab="report">보고서</button>
     <button data-tab="logs">로그</button>
   </nav>
+  <div class="spacer"></div>
   <span id="statusBadge">중지됨</span>
   <button id="monitorBtn" class="start">감시 시작</button>
 </header>
@@ -126,7 +423,7 @@ const PAGE_HTML = `<!doctype html>
     <div class="card">
       <h2>감시 세션 (상임위)</h2>
       <table id="sessionTable">
-        <thead><tr><th style="width:25%">이름</th><th>URL</th><th style="width:60px"></th></tr></thead>
+        <thead><tr><th style="width:25%">이름</th><th>URL</th><th style="width:76px"></th></tr></thead>
         <tbody></tbody>
       </table>
       <button class="btn" id="addSessionBtn">+ 세션 추가</button>
