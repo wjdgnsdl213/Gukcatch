@@ -10,6 +10,11 @@
 const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
 
+// tools/gui-server.js·tools/report.js는 이미 .env를 읽는데 여기는 빠져
+// 있었다 — Electron으로 실행하면 SMTP·ANTHROPIC_API_KEY가 전부 무시된 채
+// 뜬다. app-server를 만들기 전에 반드시 먼저 읽어야 한다.
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 const { AppServer } = require('../src/app-server');
 
 let appServer = null;
