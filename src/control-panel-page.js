@@ -277,6 +277,14 @@ const PAGE_HTML = `<!doctype html>
     gap: var(--s-xxs);
   }
   .chip button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+
+  /* 키워드 칩 — 🔔 토글 + 이름 + × */
+  .chip.kw { padding: 6px var(--s-sm); font-size: 14px; gap: var(--s-xs); }
+  .chip.kw .bell { font-size: 15px; line-height: 1; }
+  .chip.kw .x { color: var(--muted-soft); font-size: 16px; }
+  /* 알림 끈 키워드는 흐리게 — 목록에서 바로 구분된다 */
+  .chip.kw.off { background: transparent; border: 1px dashed var(--hairline); color: var(--muted); }
+  .chip.kw.off .bell { opacity: 0.55; }
   .pattern-input { display: flex; gap: var(--s-xxs); }
   .pattern-input input { flex: 1; }
 
@@ -538,11 +546,11 @@ const PAGE_HTML = `<!doctype html>
   <section id="panel-keywords" class="panel">
     <div class="card">
       <h2>감시할 키워드</h2>
-      <div class="hint">단어 하나 = 카드 하나이고, 알림 여부는 카드마다 따로 정합니다.<br />
-      AI 자막은 고유명사를 자주 틀립니다. 약칭도 잡으려면 카드를 하나 더 만드세요(예: 소상공인시장진흥공단, 소진공).
-      띄어쓰기는 신경 쓰지 않아도 됩니다 — "소상공인 시장 진흥 공단"도 같은 카드로 잡힙니다.</div>
+      <div class="hint">키워드를 적고 Enter를 누르면 추가됩니다. 🔔을 누르면 그 키워드의 알림만 끄고 켤 수 있습니다(끈 키워드도 보고서에는 남습니다).<br />
+      묶음은 <b>상임위마다 다른 키워드를 볼 때</b> 나눕니다. 대부분은 묶음 하나로 충분하고, 상임위를 비워 두면 전체에 적용됩니다.<br />
+      띄어쓰기는 신경 쓰지 않아도 됩니다 — "소상공인 시장 진흥 공단"도 "소상공인시장진흥공단"으로 잡힙니다. 약칭은 따로 추가하세요.</div>
       <div id="groupList"></div>
-      <button class="btn" id="addGroupBtn">+ 키워드 추가</button>
+      <button class="btn" id="addGroupBtn">+ 묶음 추가</button>
     </div>
     <button class="btn primary" id="saveKeywordsBtn">키워드 저장</button>
   </section>
@@ -758,55 +766,89 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
   let groups = [];
 
   /**
-   * 키워드 카드 하나 = 감시할 단어 하나.
+   * 카드 하나 = 키워드 묶음 하나.
    *
-   * 카드에는 [단어][알림 켬/끔][삭제]만 두고 담당부서·적용 상임위는
-   * "세부 설정"으로 접는다.
+   * 묶음을 나누는 기준은 "어느 상임위에 적용할지"다. 대부분은 묶음 하나로
+   * 충분하고(상임위 전체 적용), 산자위에서만 볼 키워드가 생겼을 때 묶음을
+   * 하나 더 만든다.
    *
-   * 예전에는 한 카드 안에 "같은 말"(동의어) 목록을 따로 두었는데, 그 칸의
-   * 의미가 전달되지 않아 서로 다른 주제를 한 카드에 넣게 되는 원인이었다.
-   * 지금은 단어 하나 = 카드 하나로 고정한다 — 다른 표기를 잡고 싶으면
-   * 카드를 하나 더 만들면 되고, 알림도 그만큼 따로 정할 수 있다.
+   * 키워드는 Enter로 빠르게 추가하고, 각 키워드의 🔔을 눌러 알림을 켜고
+   * 끈다. 알림은 묶음이 아니라 키워드마다 정한다 — 같은 상임위를 보더라도
+   * 어떤 말은 즉시 알림을 받고 어떤 말은 기록만 남기고 싶기 때문이다.
    *
-   * 띄어쓰기 변형은 카드를 나눌 필요가 없다. 매칭 전에 양쪽 공백을 모두
-   * 제거하므로(src/keywords.js normalize) "소상공인 시장 진흥 공단"은
-   * "소상공인시장진흥공단" 카드 하나로 잡힌다.
+   * 띄어쓰기 변형은 따로 넣을 필요가 없다. 매칭 전에 공백을 모두 제거하므로
+   * (src/keywords.js normalize) "소상공인 시장 진흥 공단"은
+   * "소상공인시장진흥공단" 하나로 잡힌다.
    */
   function renderGroups() {
     const list = $('#groupList');
     list.innerHTML = '';
     if (groups.length === 0) {
-      list.appendChild(el('div', { class: 'empty', text: '등록된 키워드가 없습니다. 아래 "+ 키워드 추가"를 누르세요.' }));
+      list.appendChild(el('div', { class: 'empty', text: '등록된 키워드가 없습니다. 아래 "+ 묶음 추가"를 누르세요.' }));
     }
     groups.forEach((g, gi) => {
-      // 구 파일의 priority(high/normal)는 둘 다 "알림 켬"으로 본다.
-      const notifyOn = g.notify === undefined ? true : Boolean(g.notify);
-
-      const labelInput = el('input', { type: 'text', placeholder: '키워드 (예: 소상공인)', value: g.label || '' });
+      const labelInput = el('input', {
+        type: 'text',
+        placeholder: '묶음 이름 (예: 공통, 산자위 전용)',
+        value: g.label || '',
+      });
       labelInput.addEventListener('input', () => { groups[gi].label = labelInput.value; });
 
-      const notifySelect = el('select', {});
-      [['on', '🔔 알림 켬'], ['off', '🔕 알림 끔']].forEach(([v, text]) => {
-        const opt = el('option', { value: v, text });
-        if ((v === 'on') === notifyOn) opt.selected = true;
-        notifySelect.appendChild(opt);
-      });
-      notifySelect.addEventListener('change', () => {
-        groups[gi].notify = notifySelect.value === 'on';
-        renderGroups();
-      });
-
       const delBtn = el('button', {
-        class: 'btn danger small', text: '삭제',
+        class: 'btn danger small', text: '묶음 삭제',
         onclick: () => { groups.splice(gi, 1); renderGroups(); },
       });
+
+      // ── 키워드 칩: 🔔 토글 + × 삭제 ──
+      const chips = el('div', { class: 'patterns' });
+      (g.patterns || []).forEach((p, pi) => {
+        const on = p.notify !== false;
+        chips.appendChild(el('span', { class: 'chip kw' + (on ? '' : ' off') }, [
+          el('button', {
+            type: 'button',
+            class: 'bell',
+            title: on ? '알림 켜짐 — 누르면 끕니다' : '알림 꺼짐 — 누르면 켭니다',
+            text: on ? '🔔' : '🔕',
+            onclick: () => { groups[gi].patterns[pi].notify = !on; renderGroups(); },
+          }),
+          el('span', { text: p.text }),
+          el('button', {
+            type: 'button',
+            class: 'x',
+            title: '삭제',
+            text: '×',
+            onclick: () => { groups[gi].patterns.splice(pi, 1); renderGroups(); },
+          }),
+        ]));
+      });
+
+      const addInput = el('input', { type: 'text', placeholder: '키워드를 적고 Enter (예: 소상공인)' });
+      addInput.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter') return;
+        ev.preventDefault();
+        const value = addInput.value.trim();
+        if (!value) return;
+        if (!groups[gi].patterns) groups[gi].patterns = [];
+        if (groups[gi].patterns.some((x) => x.text === value)) {
+          showBanner('이미 있는 키워드입니다: ' + value, true);
+          return;
+        }
+        groups[gi].patterns.push({ text: value, notify: true });
+        addInput.value = '';
+        renderGroups();
+        // 연속 입력을 위해 다시 포커스 — 렌더로 새 엘리먼트가 만들어지므로
+        // 위치로 찾아 되돌린다.
+        const inputs = list.querySelectorAll('.kw-add');
+        if (inputs[gi]) inputs[gi].focus();
+      });
+      addInput.classList.add('kw-add');
 
       // ── 세부 설정 (접힘) ──
       const deptInput = el('input', { type: 'text', placeholder: '예: 정책기획실', value: g.dept || '' });
       deptInput.addEventListener('input', () => { groups[gi].dept = deptInput.value; });
 
       const details = el('details', { class: 'advanced sub' }, [
-        el('summary', { text: '세부 설정 (담당부서 · 적용 상임위)' }),
+        el('summary', { text: '이 묶음의 적용 범위 (담당부서 · 상임위)' }),
         el('div', { class: 'field' }, [
           el('div', { class: 'field-label', text: '담당부서 — 보고서에 자동으로 채워집니다' }),
           deptInput,
@@ -814,8 +856,9 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
         buildScope(g, gi),
       ]);
 
-      list.appendChild(el('div', { class: 'group-card' + (notifyOn ? '' : ' off') }, [
-        el('div', { class: 'group-head' }, [labelInput, notifySelect, delBtn]),
+      list.appendChild(el('div', { class: 'group-card' }, [
+        el('div', { class: 'group-head' }, [labelInput, delBtn]),
+        el('div', { class: 'field' }, [chips, el('div', { class: 'pattern-input' }, [addInput])]),
         details,
       ]));
     });
@@ -879,24 +922,19 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
   }
 
   $('#addGroupBtn').addEventListener('click', () => {
-    groups.push({ label: '', dept: '', notify: true, sessions: [] });
+    groups.push({ label: '', dept: '', sessions: [], patterns: [] });
     renderGroups();
   });
 
   $('#saveKeywordsBtn').addEventListener('click', async () => {
     try {
-      // 단어 하나 = 카드 하나이므로 patterns는 이름 그대로 하나만 저장한다.
-      // (매칭 엔진은 여전히 patterns 배열을 읽으므로 파일 형식은 그대로다.)
-      const payload = groups.map((g) => {
-        const label = (g.label || '').trim();
-        return {
-          label,
-          dept: (g.dept || '').trim(),
-          notify: g.notify !== false,
-          sessions: g.sessions || [],
-          patterns: [label],
-        };
-      });
+      const payload = groups.map((g) => ({
+        label: (g.label || '').trim(),
+        dept: (g.dept || '').trim(),
+        sessions: g.sessions || [],
+        // 키워드마다 알림 여부를 함께 저장한다.
+        patterns: (g.patterns || []).map((p) => ({ text: p.text, notify: p.notify !== false })),
+      }));
       const result = await api('/api/keywords', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -914,21 +952,24 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
 
   async function loadKeywords() {
     const kw = await api('/api/keywords');
-    // 예전 형식(한 카드에 표기 여러 개)은 표기마다 카드로 펼친다. 그대로
-    // 두면 화면에 이름만 보이고 나머지 표기는 숨은 채로 저장 때 사라진다.
-    groups = [];
-    for (const g of kw.groups || []) {
-      const pats = (g.patterns || []).filter(Boolean);
-      const labels = pats.length ? pats : [g.label];
-      labels.forEach((label) => {
-        groups.push({
-          label,
-          dept: g.dept || '',
-          notify: g.notify === undefined ? true : Boolean(g.notify),
-          sessions: Array.isArray(g.sessions) ? [...g.sessions] : [],
-        });
-      });
-    }
+    // 키워드는 "소상공인"(구) 또는 {text, notify}(신) 두 형식이 온다.
+    // 구 형식은 묶음의 notify를 물려받는다 — 파일을 손으로 고치지 않아도
+    // 화면에서 저장하는 순간 신 형식으로 넘어간다.
+    groups = (kw.groups || []).map((g) => {
+      const groupNotify = g.notify === undefined ? true : Boolean(g.notify);
+      return {
+        label: g.label || '',
+        dept: g.dept || '',
+        sessions: Array.isArray(g.sessions) ? [...g.sessions] : [],
+        patterns: (g.patterns || [])
+          .map((p) => {
+            const text = typeof p === 'string' ? p : String(p?.text ?? '');
+            const notify = typeof p === 'string' || p?.notify === undefined ? groupNotify : Boolean(p.notify);
+            return { text, notify };
+          })
+          .filter((p) => p.text.trim()),
+      };
+    });
     renderGroups();
   }
 

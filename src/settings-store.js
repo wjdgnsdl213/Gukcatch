@@ -76,11 +76,19 @@ function validateKeywords(data) {
       throw new Error(`groups[${i}].label이 비어 있습니다`);
     }
     if (!Array.isArray(g.patterns) || g.patterns.length === 0) {
-      throw new Error(`groups[${i}](${g.label})의 patterns가 비어 있습니다`);
+      throw new Error(`groups[${i}](${g.label})에 키워드가 하나도 없습니다`);
     }
-    if (g.patterns.some((p) => typeof p !== 'string' || !p.trim())) {
-      throw new Error(`groups[${i}](${g.label})의 patterns에 빈 값이 있습니다`);
-    }
+    // 키워드는 "소상공인" 또는 { text: "소상공인", notify: false } 둘 다 허용.
+    // 후자는 키워드마다 알림을 따로 정하기 위한 형식이다.
+    g.patterns.forEach((p, pi) => {
+      const text = typeof p === 'string' ? p : p?.text;
+      if (typeof text !== 'string' || !text.trim()) {
+        throw new Error(`groups[${i}](${g.label})의 키워드[${pi}]가 비어 있습니다`);
+      }
+      if (typeof p === 'object' && p.notify !== undefined && typeof p.notify !== 'boolean') {
+        throw new Error(`groups[${i}](${g.label})의 키워드 "${text}"의 notify는 true 또는 false여야 합니다`);
+      }
+    });
     // notify: 실시간 알림(토스트/메일/Dooray) 발송 여부. 없으면 true로 본다.
     // 구 priority(high/normal)가 남아 있어도 검증에서 막지 않는다 —
     // loadKeywords가 무시하고 넘어가므로 파일을 손으로 고치게 할 이유가 없다.
