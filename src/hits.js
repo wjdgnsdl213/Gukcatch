@@ -27,11 +27,12 @@ class HitDetector {
    * @param {Array} channels - notify.buildChannels()의 결과 (세션들이 공유)
    * @param {import('./shot').ShotService} [shotService] - 없으면 화면 캡처를 건너뛴다
    */
-  constructor({ matcher, sessionName, channels, baseDir = '.', shotService, onError = console.error }) {
+  constructor({ matcher, sessionName, channels, baseDir = '.', mailTo, shotService, onError = console.error }) {
     this.matcher = matcher;
     this.sessionName = sessionName;
     this.channels = channels;
     this.baseDir = baseDir;
+    this.mailTo = mailTo || null;
     this.shotService = shotService || null;
     this.onError = onError;
     this.history = [];
@@ -80,7 +81,8 @@ class HitDetector {
         keyword: hit.pattern,
         group: hit.group,
         dept: hit.dept,
-        priority: hit.priority,
+        notify: hit.notify,
+        emails: hit.emails,
         text: entry.text,
         videoTime: entry.videoTime,
         videoTimeFormatted: formatVideoTime(entry.videoTime),
@@ -92,7 +94,7 @@ class HitDetector {
         screenshotMethod: screenshot?.method || null,
       };
 
-      dispatch(payload, { channels: this.channels, baseDir: this.baseDir, onError: this.onError }).catch(
+      dispatch(payload, { channels: this.channels, baseDir: this.baseDir, mailTo: this.mailTo, onError: this.onError }).catch(
         (err) => this.onError('[알림 디스패치 실패]', err),
       );
     }, CONTEXT_WAIT_MS);

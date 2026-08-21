@@ -28,7 +28,17 @@ function loadKeywords(filePath) {
   return (raw.groups || []).map((g) => ({
     label: g.label,
     dept: g.dept || null,
-    priority: g.priority || 'normal',
+    // 실시간 알림(토스트/메일/Dooray)을 보낼지. false면 알림만 끄고 히트
+    // 기록과 보고서 키워드 필터에는 그대로 포함된다 — "보고서에는 넣되
+    // 회의 중 팝업은 싫다"는 경우가 실제로 있다.
+    //
+    // 구 priority(high/normal)에서 넘어오는 파일은 둘 다 true로 본다.
+    // 지금도 normal 그룹이 토스트·Dooray·대시보드 알림을 받고 있어서
+    // (메일만 high 전용이었다) normal을 false로 매핑하면 쓰던 알림이
+    // 말없이 꺼진다. 끄는 건 사용자가 명시적으로 고르게 한다.
+    notify: g.notify === undefined ? true : Boolean(g.notify),
+    // 이 그룹 전용 수신자. 비면 config.json의 기본 수신자를 쓴다.
+    emails: Array.isArray(g.emails) ? g.emails.filter(Boolean) : [],
     // 적용 상임위. 비어 있으면 전체 적용 — 기존 keywords.json에는 이 필드가
     // 없으므로 "없음 = 전체"여야 하위 호환이 유지된다.
     // 기관 하나가 여러 상임위를 감시할 때 관심 키워드는 대체로 공통이라
@@ -88,7 +98,8 @@ class KeywordMatcher {
         hits.push({
           group: group.label,
           dept: group.dept,
-          priority: group.priority,
+          notify: group.notify,
+          emails: group.emails,
           pattern: matched.raw,
         });
       }

@@ -425,6 +425,26 @@ const PAGE_HTML = `<!doctype html>
   .scope-opts input { margin: 0; }
   .scope .scope-label.warn { color: #92400e; }
 
+  .envblock {
+    font-family: var(--font-code);
+    font-size: 13px;
+    line-height: 1.7;
+    background: var(--surface-soft);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-md);
+    padding: var(--s-md);
+    margin: 0;
+    overflow-x: auto;
+    color: var(--body);
+  }
+  .verify.ok {
+    background: color-mix(in srgb, var(--success) 8%, white);
+    border-color: color-mix(in srgb, var(--success) 30%, white);
+    color: #047857;
+  }
+  /* 알림 끔 그룹의 히트는 기록에 가까우므로 흐리게 */
+  .hit.muted { border-left-color: var(--hairline); opacity: 0.75; }
+
   @media (max-width: 900px) {
     .grid4 { grid-template-columns: repeat(2, 1fr); }
     header { gap: var(--s-sm); padding: 0 var(--s-md); }
@@ -440,6 +460,7 @@ const PAGE_HTML = `<!doctype html>
   <nav>
     <button data-tab="sessions" class="active">세션 관리</button>
     <button data-tab="keywords">키워드 관리</button>
+    <button data-tab="notify">알림</button>
     <button data-tab="monitor">모니터링</button>
     <button data-tab="report">보고서</button>
     <button data-tab="logs">로그</button>
@@ -503,6 +524,42 @@ const PAGE_HTML = `<!doctype html>
       <button class="btn" id="addGroupBtn">+ 그룹 추가</button>
     </div>
     <button class="btn primary" id="saveKeywordsBtn">키워드 저장</button>
+  </section>
+
+  <section id="panel-notify" class="panel">
+    <div class="card">
+      <h2>메일 알림</h2>
+      <div class="hint">키워드가 감지되면 등록한 주소로 메일이 갑니다. 그룹이 "알림 끔"이면 발송하지 않습니다.</div>
+      <div id="mailStatus" class="verify">확인 중...</div>
+      <div class="row">
+        <div>
+          <label>기본 수신자 (쉼표로 여러 명)</label>
+          <input type="text" id="cfgMailTo" placeholder="hong@example.com, kim@example.com" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" id="saveMailBtn">수신자 저장</button>
+        <button class="btn" id="testMailBtn">테스트 발송</button>
+      </div>
+      <div id="mailTestResult" class="hint" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <h2>SMTP 접속 정보</h2>
+      <div class="hint">
+        비밀번호가 포함되므로 화면이 아니라 <b>.env 파일</b>에서 관리합니다.
+        수정한 뒤에는 제어판을 재시작해야 반영됩니다.
+      </div>
+      <pre class="envblock">SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=보내는계정@example.com
+SMTP_PASS=앱_비밀번호
+SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
+      <div class="hint" style="margin:12px 0 0">
+        Gmail은 일반 비밀번호가 아니라 <b>앱 비밀번호</b>가 필요합니다(2단계 인증 필수).
+        기관 메일 서버를 쓴다면 전산팀에 SMTP 주소·포트·인증 방식을 문의하세요.
+      </div>
+    </div>
   </section>
 
   <section id="panel-monitor" class="panel">
@@ -619,7 +676,11 @@ const PAGE_HTML = `<!doctype html>
     renderSessions();
   });
 
-  $('#saveConfigBtn').addEventListener('click', async () => {
+  /**
+   * config.json 전체를 저장한다. 세션 탭과 알림 탭이 같은 파일을 쓰므로
+   * 한쪽만 보내면 다른 쪽 값이 날아간다 — 항상 화면 전체를 실어 보낸다.
+   */
+  async function saveConfig({ silent } = {}) {
     const config = {
       sessions: sessions.map((s) => ({ name: (s.name || '').trim(), url: (s.url || '').trim() })),
       headless: $('#cfgHeadless').checked,
@@ -627,10 +688,19 @@ const PAGE_HTML = `<!doctype html>
       watchdogIdleMs: Number($('#cfgWatchdogMs').value) || 300000,
       maxShotsPerSession: Number($('#cfgMaxShots').value) || 200,
       cooldownMs: Number($('#cfgCooldownMs').value) || 60000,
+      mailTo: $('#cfgMailTo').value.trim(),
     };
+    await api('/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    if (!silent) showBanner('설정이 저장되었습니다.');
+  }
+
+  $('#saveConfigBtn').addEventListener('click', async () => {
     try {
-      await api('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
-      showBanner('설정이 저장되었습니다.');
+      await saveConfig();
     } catch (e) {
       showBanner('저장 실패: ' + e.message, true);
     }
@@ -644,6 +714,7 @@ const PAGE_HTML = `<!doctype html>
     $('#cfgWatchdogMs').value = cfg.watchdogIdleMs ?? 300000;
     $('#cfgMaxShots').value = cfg.maxShotsPerSession ?? 200;
     $('#cfgCooldownMs').value = cfg.cooldownMs ?? 60000;
+    $('#cfgMailTo').value = cfg.mailTo || '';
     renderSessions();
   }
 
@@ -661,13 +732,20 @@ const PAGE_HTML = `<!doctype html>
       labelInput.addEventListener('input', () => { groups[gi].label = labelInput.value; });
       const deptInput = el('input', { type: 'text', placeholder: '담당부서', value: g.dept || '' });
       deptInput.addEventListener('input', () => { groups[gi].dept = deptInput.value; });
-      const prioritySelect = el('select', {});
-      ['normal', 'high'].forEach((p) => {
-        const opt = el('option', { value: p, text: p === 'high' ? '높음' : '보통' });
-        if (g.priority === p) opt.selected = true;
-        prioritySelect.appendChild(opt);
+      // 구 파일의 priority(high/normal)는 둘 다 "알림"으로 본다.
+      // 지금도 normal 그룹이 토스트·대시보드 알림을 받고 있어서, normal을
+      // "알림 끔"으로 옮기면 쓰던 알림이 말없이 꺼진다.
+      const notifyOn = g.notify === undefined ? true : Boolean(g.notify);
+      const notifySelect = el('select', {});
+      [['on', '알림'], ['off', '알림 끔']].forEach(([v, text]) => {
+        const opt = el('option', { value: v, text });
+        if ((v === 'on') === notifyOn) opt.selected = true;
+        notifySelect.appendChild(opt);
       });
-      prioritySelect.addEventListener('change', () => { groups[gi].priority = prioritySelect.value; });
+      notifySelect.addEventListener('change', () => {
+        groups[gi].notify = notifySelect.value === 'on';
+        renderGroups();
+      });
       const delGroupBtn = el('button', { class: 'btn danger small', text: '그룹 삭제', onclick: () => { groups.splice(gi, 1); renderGroups(); } });
 
       const patternsDiv = el('div', { class: 'patterns' });
@@ -689,11 +767,16 @@ const PAGE_HTML = `<!doctype html>
         }
       });
 
+      // 알림을 끈 그룹은 수신자를 물어볼 이유가 없다 — 입력칸을 감춰서
+      // "적었는데 왜 안 오지"를 미리 막는다.
+      const mailRow = notifyOn ? buildGroupMail(g, gi) : null;
+
       list.appendChild(el('div', { class: 'group-card' }, [
-        el('div', { class: 'group-head' }, [labelInput, deptInput, prioritySelect, delGroupBtn]),
+        el('div', { class: 'group-head' }, [labelInput, deptInput, notifySelect, delGroupBtn]),
         patternsDiv,
         el('div', { class: 'pattern-input' }, [patInput]),
         buildScope(g, gi),
+        ...(mailRow ? [mailRow] : []),
       ]));
     });
   }
@@ -755,8 +838,24 @@ const PAGE_HTML = `<!doctype html>
     ]);
   }
 
+  /** 그룹 전용 수신자. 비우면 알림 탭의 기본 수신자로 간다. */
+  function buildGroupMail(g, gi) {
+    const input = el('input', {
+      type: 'text',
+      placeholder: '비우면 기본 수신자로 발송 (쉼표로 여러 명)',
+      value: (g.emails || []).join(', '),
+    });
+    input.addEventListener('input', () => {
+      groups[gi].emails = input.value.split(',').map((s) => s.trim()).filter(Boolean);
+    });
+    return el('div', { class: 'scope' }, [
+      el('div', { class: 'scope-label', text: '이 그룹 전용 수신자' }),
+      input,
+    ]);
+  }
+
   $('#addGroupBtn').addEventListener('click', () => {
-    groups.push({ label: '', dept: '', priority: 'normal', sessions: [], patterns: [] });
+    groups.push({ label: '', dept: '', notify: true, sessions: [], emails: [], patterns: [] });
     renderGroups();
   });
 
@@ -825,6 +924,59 @@ const PAGE_HTML = `<!doctype html>
     }
   });
 
+  // ── 알림 ──────────────────────────────────────────────
+  async function loadMailStatus() {
+    const s = await api('/api/notify/status');
+    const box = $('#mailStatus');
+    const parts = [];
+    if (!s.installed) parts.push('nodemailer 미설치 — npm install 필요');
+    else if (!s.host) parts.push('SMTP_HOST 미설정 — 아래 안내대로 .env를 채우세요');
+    else {
+      parts.push('SMTP ' + s.host + ':' + s.port);
+      parts.push(s.user ? '계정 ' + s.user : '인증 없음');
+      parts.push(s.hasPassword ? '비밀번호 설정됨' : '⚠ 비밀번호 없음');
+    }
+    parts.push(
+      s.defaultRecipients.length
+        ? '기본 수신자 ' + s.defaultRecipients.length + '명'
+        : '기본 수신자 없음',
+    );
+    box.textContent = (s.ready ? '발송 준비 완료 · ' : '발송 불가 · ') + parts.join(' · ');
+    box.className = 'verify ' + (s.ready ? 'ok' : 'warn');
+  }
+
+  $('#saveMailBtn').addEventListener('click', async () => {
+    try {
+      // config 전체를 다시 보내야 하므로 현재 화면 값을 그대로 실어 보낸다.
+      await saveConfig({ silent: true });
+      await loadMailStatus();
+      showBanner('수신자가 저장되었습니다.');
+    } catch (e) {
+      showBanner('저장 실패: ' + e.message, true);
+    }
+  });
+
+  $('#testMailBtn').addEventListener('click', async () => {
+    const btn = $('#testMailBtn');
+    const out = $('#mailTestResult');
+    btn.disabled = true;
+    out.textContent = '발송 중...';
+    try {
+      const r = await api('/api/notify/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: $('#cfgMailTo').value.trim() }),
+      });
+      out.textContent = '발송 완료 — ' + r.sent.join(', ') + ' (메일함을 확인하세요)';
+      showBanner('테스트 메일을 보냈습니다.');
+    } catch (e) {
+      out.textContent = '실패: ' + e.message;
+      showBanner('테스트 발송 실패: ' + e.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   // ── 보고서 ──────────────────────────────────────────────
   function fmtBytes(n) {
     return n > 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + 'MB' : Math.round(n / 1024) + 'KB';
@@ -888,8 +1040,9 @@ const PAGE_HTML = `<!doctype html>
     }
     list.className = '';
     items.forEach((r) => {
-      const isHigh = (r.매칭키워드 || []).some((k) => k.중요도 === 'high');
-      const card = el('div', { class: 'rep' + (r.미분류 ? ' unclassified' : isHigh ? ' high' : '') });
+      // 강조는 "사람이 확인해야 하는 것"에만 쓴다. 알림 여부는 보고서의
+      // 중요도와 다른 축이라 색으로 구분하지 않는다.
+      const card = el('div', { class: 'rep' + (r.미분류 ? ' unclassified' : '') });
 
       const head = el('div', { class: 'head' });
       head.appendChild(el('span', { class: 'subject', text: r.주제 || '(주제 미상)' }));
@@ -993,7 +1146,9 @@ const PAGE_HTML = `<!doctype html>
   function renderHit(hit) {
     const list = $('#hitList');
     if (list.className === 'empty') { list.className = ''; list.innerHTML = ''; }
-    const card = el('div', { class: 'hit' + (hit.priority === 'high' ? ' high' : '') });
+    // 알림을 끈 그룹의 히트도 목록에는 남긴다(기록이므로). 다만 흐리게
+    // 그려서 "알림이 간 것"과 구분되게 한다.
+    const card = el('div', { class: 'hit' + (hit.notify === false ? ' muted' : '') });
     card.appendChild(el('div', { class: 'meta', text: '[' + hit.session + '] ' + hit.videoTimeFormatted }));
     const kw = el('span', { class: 'kw', text: hit.group });
     card.appendChild(kw);
@@ -1050,6 +1205,7 @@ const PAGE_HTML = `<!doctype html>
     loadKeywords(),
     loadReportFiles(),
     loadReportList(),
+    loadMailStatus(),
     api('/api/monitor/status').then(applyStatus),
   ])
     // 키워드 그룹의 "적용 상임위" 체크박스는 세션 목록이 있어야 그릴 수 있는데

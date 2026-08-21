@@ -33,6 +33,7 @@ async function runAll({
   baseDir = '.',
   keywordsPath,
   cooldownMs,
+  mailTo,
   dashboard,
   shotsDir,
   maxShotsPerSession,
@@ -79,7 +80,7 @@ async function runAll({
         dir: shotsDir || path.join(baseDir, 'shots'),
         maxPerSession: maxShotsPerSession,
       });
-      const hitDetector = new HitDetector({ matcher, sessionName, channels, baseDir, shotService, onError });
+      const hitDetector = new HitDetector({ matcher, sessionName, channels, baseDir, mailTo, shotService, onError });
 
       return runSession({
         name: sessionName,

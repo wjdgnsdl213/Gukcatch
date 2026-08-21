@@ -17,6 +17,9 @@ const DEFAULT_CONFIG = {
   watchdogIdleMs: 300000,
   maxShotsPerSession: 200,
   cooldownMs: 60000,
+  // 기본 메일 수신자(쉼표 구분). SMTP 접속 정보는 .env에만 둔다 —
+  // config.json은 평문이고 저장소에 올라갈 위험이 있다.
+  mailTo: '',
 };
 
 const DEFAULT_KEYWORDS = { groups: [] };
@@ -78,8 +81,22 @@ function validateKeywords(data) {
     if (g.patterns.some((p) => typeof p !== 'string' || !p.trim())) {
       throw new Error(`groups[${i}](${g.label})의 patterns에 빈 값이 있습니다`);
     }
-    if (g.priority && !['high', 'normal'].includes(g.priority)) {
-      throw new Error(`groups[${i}](${g.label}).priority는 "high" 또는 "normal"이어야 합니다`);
+    // notify: 실시간 알림(토스트/메일/Dooray) 발송 여부. 없으면 true로 본다.
+    // 구 priority(high/normal)가 남아 있어도 검증에서 막지 않는다 —
+    // loadKeywords가 무시하고 넘어가므로 파일을 손으로 고치게 할 이유가 없다.
+    if (g.notify !== undefined && typeof g.notify !== 'boolean') {
+      throw new Error(`groups[${i}](${g.label}).notify는 true 또는 false여야 합니다`);
+    }
+    if (g.emails !== undefined) {
+      if (!Array.isArray(g.emails)) {
+        throw new Error(`groups[${i}](${g.label}).emails는 배열이어야 합니다`);
+      }
+      const badMail = g.emails.filter(
+        (e) => typeof e !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim()),
+      );
+      if (badMail.length) {
+        throw new Error(`groups[${i}](${g.label})의 이메일 형식이 올바르지 않습니다: ${badMail.join(', ')}`);
+      }
     }
     // sessions는 선택 항목이다. 없거나 빈 배열이면 전체 상임위에 적용된다.
     if (g.sessions !== undefined) {

@@ -28,6 +28,7 @@ const {
 const { PAGE_HTML } = require('./control-panel-page');
 const { runReportPipeline, listCaptionFiles } = require('./report-run');
 const { buildDocx, docxFilename } = require('./docx-report');
+const { mailStatus, sendTest } = require('./notify/mail');
 
 const MAX_CACHED_EVENTS = 300;
 const MAX_BODY_BYTES = 1024 * 1024; // 1MB — 설정 파일 하나 저장하는 데 이 이상은 필요 없다
@@ -160,6 +161,7 @@ class AppServer {
       baseDir: this.baseDir, // 누락 시 raw/정리본 캡션 파일이 process.cwd()에 생김 (Electron은 특히 cwd가 예측 불가)
       keywordsPath: this.keywordsPath,
       cooldownMs: config.cooldownMs,
+      mailTo: config.mailTo,
       dashboard: this,
       shotsDir: this.shotsDir,
       maxShotsPerSession: config.maxShotsPerSession,
@@ -343,6 +345,21 @@ class AppServer {
     if (p === '/api/monitor/stop' && req.method === 'POST') {
       const status = await this.stopMonitoring();
       return this._json(res, 200, status);
+    }
+
+    if (p === '/api/notify/status' && req.method === 'GET') {
+      const config = loadConfigFile(this.configPath);
+      return this._json(res, 200, mailStatus({ defaultTo: config.mailTo }));
+    }
+
+    if (p === '/api/notify/test' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const config = loadConfigFile(this.configPath);
+      // 저장 전에도 테스트할 수 있게 요청 본문의 주소를 우선한다 —
+      // "저장 → 테스트 → 다시 수정"을 왕복하지 않아도 된다.
+      const result = await sendTest({ to: body.to, defaultTo: config.mailTo });
+      this.broadcastLog({ level: 'info', message: `테스트 메일 발송 — ${result.sent.join(', ')}` });
+      return this._json(res, 200, result);
     }
 
     if (p === '/api/report/files' && req.method === 'GET') {

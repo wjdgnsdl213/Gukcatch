@@ -21,7 +21,7 @@ const PAGE_HTML = `<!doctype html>
   #status { font-size: 12px; color: #8a93ab; margin-top: 4px; }
   #list { padding: 16px 24px; display: flex; flex-direction: column; gap: 10px; }
   .hit { background: #171d2e; border-left: 4px solid #3498db; border-radius: 6px; padding: 12px 16px; }
-  .hit.high { border-left-color: #e74c3c; }
+  .hit.muted { border-left-color: #d0d0d0; opacity: 0.75; }
   .hit .meta { font-size: 12px; color: #8a93ab; margin-bottom: 6px; }
   .hit .kw { display: inline-block; background: #2a3350; padding: 1px 8px; border-radius: 10px; font-size: 12px; margin-right: 6px; }
   .hit .text { font-size: 15px; }
@@ -44,7 +44,7 @@ const PAGE_HTML = `<!doctype html>
   function render(hit) {
     if (!rendered) { list.innerHTML = ''; rendered = true; }
     const el = document.createElement('div');
-    el.className = 'hit' + (hit.priority === 'high' ? ' high' : '');
+    el.className = 'hit' + (hit.notify === false ? ' muted' : '');
     const ctx = [
       ...(hit.contextBefore || []),
       '▶ ' + hit.text,

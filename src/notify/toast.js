@@ -87,4 +87,5 @@ function sendViaMsgExe(message, title) {
   });
 }
 
-module.exports = { name: 'toast', send };
+// alerting: 사용자를 방해하는 채널. 그룹이 '알림x'면 건너뛴다.
+module.exports = { name: 'toast', alerting: true, send };

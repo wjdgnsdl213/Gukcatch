@@ -174,15 +174,14 @@ async function runReportPipeline({
     });
     reports.push({
       ...report,
-      매칭키워드: hits.map((h) => ({ 그룹: h.group, 패턴: h.pattern, 중요도: h.priority })),
+      매칭키워드: hits.map((h) => ({ 그룹: h.group, 패턴: h.pattern, 알림: h.notify !== false })),
     });
   }
 
-  // 중요도 높은 것부터, 그 다음 영상 시점 순
-  reports.sort((a, b) => {
-    const pri = (r) => (r.매칭키워드?.some((k) => k.중요도 === 'high') ? 0 : 1);
-    return pri(a) - pri(b) || String(a.영상시점).localeCompare(String(b.영상시점));
-  });
+  // 회의 진행 순서(영상 시점)대로 정렬한다. 예전에는 키워드 중요도가 높은
+  // 것을 위로 올렸는데, 회의록 성격의 문서에서는 시간순이 읽기 쉽고
+  // "알림 여부"는 보고서의 중요도와 무관한 축이다.
+  reports.sort((a, b) => String(a.영상시점).localeCompare(String(b.영상시점)));
 
   const result = {
     메타: {

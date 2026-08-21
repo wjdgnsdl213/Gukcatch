@@ -22,7 +22,7 @@ async function send(payload) {
       {
         title: `키워드: ${payload.keyword} · 시점: ${payload.videoTimeFormatted}`,
         text: buildContextText(payload),
-        color: payload.priority === 'high' ? '#e74c3c' : '#3498db',
+        color: '#111111', // 국캐치 기본색 (알림 끔 그룹은 애초에 여기까지 오지 않는다)
       },
     ],
   };
@@ -47,4 +47,5 @@ function buildContextText(payload) {
   return lines.join('\n');
 }
 
-module.exports = { name: 'dooray', send };
+// alerting: 사용자를 방해하는 채널. 그룹이 '알림x'면 건너뛴다.
+module.exports = { name: 'dooray', alerting: true, send };
