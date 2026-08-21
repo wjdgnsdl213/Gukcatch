@@ -8,7 +8,13 @@
 const fs = require('fs');
 const path = require('path');
 
-const CONTENT_TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' };
+const CONTENT_TYPES = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+};
 
 /**
  * `${urlPrefix}파일명` 요청을 `dir` 하위 파일로 서빙한다.
@@ -19,8 +25,11 @@ const CONTENT_TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'ima
  * @param {string} urlPath - req.url (쿼리스트링 포함 가능)
  * @param {string} urlPrefix - 예: '/shots/'
  * @param {import('http').ServerResponse} res
+ * @param {{cacheControl?: string}} [opts] - 정적 자산(폰트 등)은 오래 캐시해도 된다.
+ *   파일명 자체가 바뀌지 않는 한(폰트 파일 교체 = 배포 갱신) 매번 2MB를
+ *   다시 받을 이유가 없다. 캡처 스크린샷처럼 계속 늘어나는 파일에는 쓰지 않는다.
  */
-function serveFromDir(dir, urlPath, urlPrefix, res) {
+function serveFromDir(dir, urlPath, urlPrefix, res, opts = {}) {
   let decoded;
   try {
     decoded = decodeURIComponent(urlPath.slice(urlPrefix.length).split('?')[0]);
@@ -36,7 +45,9 @@ function serveFromDir(dir, urlPath, urlPrefix, res) {
       return res.end('Not Found');
     }
     const contentType = CONTENT_TYPES[path.extname(filename).toLowerCase()] || 'application/octet-stream';
-    res.writeHead(200, { 'Content-Type': contentType });
+    const headers = { 'Content-Type': contentType };
+    if (opts.cacheControl) headers['Cache-Control'] = opts.cacheControl;
+    res.writeHead(200, headers);
     res.end(data);
   });
 }

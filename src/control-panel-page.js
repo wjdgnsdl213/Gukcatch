@@ -10,14 +10,26 @@ const PAGE_HTML = `<!doctype html>
 <meta charset="utf-8" />
 <title>국캐치 — 제어판</title>
 <style>
+  /* Pretendard — 한글 UI 전용으로 설계된 가변 폰트. Segoe UI의 한글
+     폴백(맑은 고딕)은 굵기 단계가 3~4개뿐이라 제목·본문 위계를 무게로
+     표현하기 어렵다. Pretendard는 굵기 45~920 전 구간을 한 파일로 지원해
+     타이포 대비를 낼 수 있다.
+
+     CDN 대신 파일을 앱에 내장했다(assets/fonts, /fonts/ 라우트로 서빙) —
+     이 도구는 회의 중 오프라인에서도 떠야 하는데, 지난번 걷어낸 Google
+     Fonts CDN처럼 외부 네트워크에 다시 의존하면 안 된다. SIL OFL 1.1
+     라이선스이며 assets/fonts/LICENSE.txt에 원문을 그대로 포함했다. */
+  @font-face {
+    font-family: 'Pretendard Variable';
+    src: url('/fonts/PretendardVariable.woff2') format('woff2');
+    font-weight: 45 920;
+    font-style: normal;
+    font-display: swap;
+  }
+
   /* ── 디자인 토큰 (Apple 계열) ───────────────────────────────────────
      흰 카드 + #f5f5f7 바탕 + 파란 pill 버튼. iOS 설정 화면의 질감을
-     제어판에 옮겼다.
-
-     웹폰트를 쓰지 않는다. 애플의 SF Pro는 배포 폰트가 아니고, 이 도구는
-     회의 중 오프라인에서도 떠야 한다. Windows의 Segoe UI Variable이
-     SF Pro와 성격이 가까워 시스템 스택만으로 충분히 그 느낌이 난다.
-     (CDN 링크를 없애면서 네트워크 의존도 함께 사라졌다.) */
+     제어판에 옮겼다. */
   :root {
     /* 강조 — 애플의 액션 색은 검정이 아니라 파랑이다 */
     --blue: #0071e3;
@@ -62,8 +74,8 @@ const PAGE_HTML = `<!doctype html>
     --s-lg: 24px;
     --s-xl: 32px;
 
-    --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text",
-               "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    --font-ui: "Pretendard Variable", -apple-system, BlinkMacSystemFont, "SF Pro Text",
+               "Segoe UI Variable Text", "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
     --font-code: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
 
     /* 그림자 — 애플은 거의 안 쓰고, 쓸 때도 아주 옅다 */
@@ -101,9 +113,9 @@ const PAGE_HTML = `<!doctype html>
   }
   header h1 {
     margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
     color: var(--text);
     white-space: nowrap;
   }
@@ -176,7 +188,10 @@ const PAGE_HTML = `<!doctype html>
   #monitorBtn.stop { background: var(--surface); color: var(--red); border-color: var(--sep); }
   #monitorBtn.stop:hover { background: var(--red-soft); }
 
-  .btn { background: var(--surface); color: var(--blue); border-color: var(--sep); }
+  /* 보조 버튼은 중립색이다 — 파란 글자를 모든 버튼에 쓰면 정말 눌러야
+     할 주 동작(파란 배경)이 묻힌다. 파랑은 이 화면에서 "지금 이걸
+     누르세요"라는 신호로만 아껴 쓴다. */
+  .btn { background: var(--surface); color: var(--text); border-color: var(--sep); }
   .btn:hover { background: var(--fill); }
   .btn.primary { background: var(--blue); color: var(--on-accent); border-color: transparent; }
   .btn.primary:hover { background: #0077ed; }
@@ -205,11 +220,11 @@ const PAGE_HTML = `<!doctype html>
     box-shadow: var(--shadow-xs);
   }
   .card h2 {
-    font-size: 20px;
-    font-weight: 600;
+    font-size: 22px;
+    font-weight: 700;
     margin: 0 0 var(--s-sm) 0;
     color: var(--text);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
   }
 
   /* ── 폼 ─────────────────────────────────────────────────────────── */
@@ -272,8 +287,8 @@ const PAGE_HTML = `<!doctype html>
     cursor: pointer;
     padding: var(--s-md) 0;
     font-size: 14px;
-    font-weight: 500;
-    color: var(--blue);
+    font-weight: 600;
+    color: var(--text);
     list-style: none;
   }
   .advanced summary::-webkit-details-marker { display: none; }
@@ -412,7 +427,7 @@ const PAGE_HTML = `<!doctype html>
   }
   .rep.unclassified { border-left: 3px solid var(--orange); }
   .rep .head { display: flex; align-items: baseline; gap: var(--s-xs); flex-wrap: wrap; margin-bottom: var(--s-sm); }
-  .rep .subject { font-weight: 600; font-size: 17px; color: var(--text); letter-spacing: -0.02em; }
+  .rep .subject { font-weight: 700; font-size: 18px; color: var(--text); letter-spacing: -0.02em; }
   .rep .who { font-size: 14px; color: var(--text-2); }
   .rep .kw {
     display: inline-block;

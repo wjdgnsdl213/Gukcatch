@@ -183,6 +183,10 @@ Gukcatch/
 │
 ├── electron/main.js            제어판을 데스크톱 앱으로
 │
+├── assets/fonts/                Pretendard Variable (제어판 UI 폰트, SIL OFL 1.1)
+│   ├── PretendardVariable.woff2  /fonts/ 라우트로 서빙 — CDN 대신 내장
+│   └── LICENSE.txt               라이선스 원문
+│
 ├── .env.example                환경변수 예시 (API 키·SMTP)
 ├── config.example.json         상임위 목록 예시
 ├── keywords.example.json       키워드 예시

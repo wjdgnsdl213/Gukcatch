@@ -66,6 +66,10 @@ class AppServer {
     this.configPath = path.join(baseDir, 'config.json');
     this.keywordsPath = path.join(baseDir, 'keywords.json');
     this.shotsDir = path.join(baseDir, 'shots');
+    // 폰트는 사용자 데이터가 아니라 앱 번들 자산이다. baseDir(사용자가
+    // 지정한 작업 폴더)가 아니라 이 파일 기준 경로로 잡아야 baseDir를
+    // 바꿔 실행해도(Electron 등) 항상 찾는다.
+    this.fontsDir = path.join(__dirname, '..', 'assets', 'fonts');
     this.archiveDir = path.join(baseDir, 'archive');
 
     this.reportsDir = path.join(baseDir, 'reports');
@@ -306,6 +310,14 @@ class AppServer {
 
     if (p.startsWith('/shots/')) {
       return serveFromDir(this.shotsDir, req.url, '/shots/', res);
+    }
+
+    if (p.startsWith('/fonts/')) {
+      // immutable: 파일명이 버전과 무관하게 고정이라, 폰트를 바꿀 땐
+      // 파일명을 바꿔야 캐시가 갱신된다(지금은 교체할 계획이 없어 단순하게 둠).
+      return serveFromDir(this.fontsDir, req.url, '/fonts/', res, {
+        cacheControl: 'public, max-age=31536000, immutable',
+      });
     }
 
     if (p === '/api/config') {
