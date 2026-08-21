@@ -16,7 +16,7 @@ async function send(payload) {
   if (!url) return;
 
   const body = {
-    botName: '국회 자막 모니터',
+    botName: '국캐치',
     text: `**[${payload.session}] ${payload.group} 감지** (담당: ${payload.dept || '미지정'})`,
     attachments: [
       {

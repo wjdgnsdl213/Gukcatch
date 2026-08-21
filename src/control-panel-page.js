@@ -8,7 +8,7 @@ const PAGE_HTML = `<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<title>국회 자막 모니터 — 제어판</title>
+<title>국캐치 — 제어판</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
@@ -436,7 +436,7 @@ const PAGE_HTML = `<!doctype html>
 </head>
 <body>
 <header>
-  <h1>국회 자막 모니터</h1>
+  <h1>국캐치</h1>
   <nav>
     <button data-tab="sessions" class="active">세션 관리</button>
     <button data-tab="keywords">키워드 관리</button>

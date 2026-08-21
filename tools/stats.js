@@ -102,7 +102,7 @@ const html = `<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<title>국회 자막 모니터 — 통계</title>
+<title>국캐치 — 통계</title>
 <style>
   body { font-family: -apple-system, "Malgun Gothic", sans-serif; margin: 0; padding: 24px; background: #f5f6fa; color: #1a1a1a; }
   h1 { font-size: 20px; margin-bottom: 4px; }
@@ -116,7 +116,7 @@ const html = `<!doctype html>
 </style>
 </head>
 <body>
-<h1>국회 자막 모니터 — 통계</h1>
+<h1>국캐치 — 통계</h1>
 <div class="meta">생성 시각: ${new Date().toLocaleString('ko-KR')} · 히트 ${hits.length}건 · 보고서 ${reports.length}건</div>
 
 <div class="stat-row">

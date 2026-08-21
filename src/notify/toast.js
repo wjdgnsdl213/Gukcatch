@@ -60,7 +60,7 @@ $texts = $template.GetElementsByTagName("text")
 $texts.Item(0).AppendChild($template.CreateTextNode($env:NATV_TOAST_TITLE)) > $null
 $texts.Item(1).AppendChild($template.CreateTextNode($env:NATV_TOAST_MESSAGE)) > $null
 $toast = [Windows.UI.Notifications.ToastNotification]::new($template)
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("국회 자막 모니터").Show($toast)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("국캐치").Show($toast)
 `.trim();
 
   return new Promise((resolve, reject) => {

@@ -24,7 +24,7 @@ async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
-    title: '국회 자막 모니터',
+    title: '국캐치',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

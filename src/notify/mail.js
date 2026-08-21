@@ -43,7 +43,7 @@ async function send(payload) {
   await transporter.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to,
-    subject: `[국회 자막 감지] ${payload.session} - ${payload.group}`,
+    subject: `[국캐치] ${payload.session} - ${payload.group}`,
     text: buildText(payload),
     attachments: payload.screenshotPath ? [{ path: payload.screenshotPath }] : undefined,
   });

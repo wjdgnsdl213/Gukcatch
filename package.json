@@ -1,8 +1,8 @@
 {
-  "name": "natv-caption-scraper",
+  "name": "gukcatch",
   "version": "5.0.0",
   "private": true,
-  "description": "국회 인터넷의사중계시스템 AI 자막 실시간 모니터링 도구",
+  "description": "국캐치 — 국회 인터넷의사중계시스템 AI 자막 실시간 감시·키워드 알림·보고 초안 생성",
   "main": "natv-caption-scraper.js",
   "scripts": {
     "start": "node natv-caption-scraper.js",

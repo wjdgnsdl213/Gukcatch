@@ -13,7 +13,7 @@ const PAGE_HTML = `<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<title>국회 자막 모니터</title>
+<title>국캐치</title>
 <style>
   body { font-family: -apple-system, "Malgun Gothic", sans-serif; margin: 0; background: #0f1420; color: #e6e8ee; }
   header { padding: 16px 24px; background: #171d2e; border-bottom: 1px solid #2a3350; position: sticky; top: 0; }
@@ -32,7 +32,7 @@ const PAGE_HTML = `<!doctype html>
 </head>
 <body>
 <header>
-  <h1>국회 자막 모니터 — 실시간 키워드 히트</h1>
+  <h1>국캐치 — 실시간 키워드 히트</h1>
   <div id="status">연결 중...</div>
 </header>
 <div id="list"><div class="empty">아직 히트가 없습니다.</div></div>
