@@ -538,7 +538,9 @@ const PAGE_HTML = `<!doctype html>
   <section id="panel-keywords" class="panel">
     <div class="card">
       <h2>감시할 키워드</h2>
-      <div class="hint">키워드 하나 = 카드 하나입니다. 알림 여부는 카드마다 따로 정합니다.<br />AI 자막은 고유명사를 자주 틀리므로, 같은 대상의 다른 표기(약칭·띄어쓰기)를 "같은 말"에 최대한 많이 넣으세요.</div>
+      <div class="hint">단어 하나 = 카드 하나이고, 알림 여부는 카드마다 따로 정합니다.<br />
+      AI 자막은 고유명사를 자주 틀립니다. 약칭도 잡으려면 카드를 하나 더 만드세요(예: 소상공인시장진흥공단, 소진공).
+      띄어쓰기는 신경 쓰지 않아도 됩니다 — "소상공인 시장 진흥 공단"도 같은 카드로 잡힙니다.</div>
       <div id="groupList"></div>
       <button class="btn" id="addGroupBtn">+ 키워드 추가</button>
     </div>
@@ -561,6 +563,21 @@ const PAGE_HTML = `<!doctype html>
         <button class="btn" id="testMailBtn">테스트 발송</button>
       </div>
       <div id="mailTestResult" class="hint" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <h2>Windows 알림</h2>
+      <div class="hint">
+        키워드가 감지되면 이 PC 화면 오른쪽 아래에 알림이 뜹니다. 별도 설정 없이 동작합니다.
+      </div>
+      <div class="row">
+        <button class="btn" id="testToastBtn">알림 테스트</button>
+      </div>
+      <div id="toastTestResult" class="hint" style="margin:12px 0 0"></div>
+      <div class="hint" style="margin:12px 0 0">
+        알림이 안 보이면 Windows <b>설정 → 시스템 → 알림</b>에서 알림이 꺼져 있거나
+        <b>방해 금지(집중 지원)</b>가 켜져 있는지 확인하세요.
+      </div>
     </div>
 
     <div class="card">
@@ -741,15 +758,19 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
   let groups = [];
 
   /**
-   * 키워드 카드 하나 = 감시할 주제 하나.
+   * 키워드 카드 하나 = 감시할 단어 하나.
    *
-   * 카드 맨 위에 [이름][알림 켬/끔][삭제]만 두고, 담당부서·상임위·수신자는
-   * "세부 설정"으로 접는다. 평소에 고치는 건 이름·같은 말·알림 여부뿐인데
-   * 여섯 칸이 한 줄에 늘어서 있으면 어디를 봐야 할지 알기 어렵다.
+   * 카드에는 [단어][알림 켬/끔][삭제]만 두고 담당부서·적용 상임위는
+   * "세부 설정"으로 접는다.
    *
-   * 한 카드 안의 "같은 말"은 동의어다 — 자막이 같은 대상을 다르게 적는
-   * 경우(건보공단/건강보험공단)를 잡기 위한 것이라 알림 설정을 공유한다.
-   * 알림을 따로 주고 싶은 주제라면 카드를 나눠야 한다.
+   * 예전에는 한 카드 안에 "같은 말"(동의어) 목록을 따로 두었는데, 그 칸의
+   * 의미가 전달되지 않아 서로 다른 주제를 한 카드에 넣게 되는 원인이었다.
+   * 지금은 단어 하나 = 카드 하나로 고정한다 — 다른 표기를 잡고 싶으면
+   * 카드를 하나 더 만들면 되고, 알림도 그만큼 따로 정할 수 있다.
+   *
+   * 띄어쓰기 변형은 카드를 나눌 필요가 없다. 매칭 전에 양쪽 공백을 모두
+   * 제거하므로(src/keywords.js normalize) "소상공인 시장 진흥 공단"은
+   * "소상공인시장진흥공단" 카드 하나로 잡힌다.
    */
   function renderGroups() {
     const list = $('#groupList');
@@ -780,55 +801,21 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
         onclick: () => { groups.splice(gi, 1); renderGroups(); },
       });
 
-      // ── 같은 말(동의어) ──
-      const patternsDiv = el('div', { class: 'patterns' });
-      (g.patterns || []).forEach((pat, pi) => {
-        patternsDiv.appendChild(el('span', { class: 'chip' }, [
-          el('span', { text: pat }),
-          el('button', { type: 'button', text: '×', onclick: () => { groups[gi].patterns.splice(pi, 1); renderGroups(); } }),
-        ]));
-      });
-
-      const patInput = el('input', { type: 'text', placeholder: '같은 말을 적고 Enter (예: 소상공인시장진흥공단, 소진공)' });
-      patInput.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter' && patInput.value.trim()) {
-          ev.preventDefault();
-          if (!groups[gi].patterns) groups[gi].patterns = [];
-          groups[gi].patterns.push(patInput.value.trim());
-          patInput.value = '';
-          renderGroups();
-        }
-      });
-
-      const words = el('div', { class: 'field' }, [
-        el('div', { class: 'field-label', text: '같은 말 — 자막이 다르게 적을 수 있는 표기를 모두 넣으세요' }),
-        patternsDiv,
-        el('div', { class: 'pattern-input' }, [patInput]),
-      ]);
-
       // ── 세부 설정 (접힘) ──
       const deptInput = el('input', { type: 'text', placeholder: '예: 정책기획실', value: g.dept || '' });
       deptInput.addEventListener('input', () => { groups[gi].dept = deptInput.value; });
 
-      const detailBody = [
+      const details = el('details', { class: 'advanced sub' }, [
+        el('summary', { text: '세부 설정 (담당부서 · 적용 상임위)' }),
         el('div', { class: 'field' }, [
           el('div', { class: 'field-label', text: '담당부서 — 보고서에 자동으로 채워집니다' }),
           deptInput,
         ]),
         buildScope(g, gi),
-      ];
-      // 알림을 끈 키워드는 수신자를 물어볼 이유가 없다 — 입력칸을 감춰서
-      // "적었는데 왜 안 오지"를 미리 막는다.
-      if (notifyOn) detailBody.push(buildGroupMail(g, gi));
-
-      const details = el('details', { class: 'advanced sub' }, [
-        el('summary', { text: '세부 설정 (담당부서 · 적용 상임위' + (notifyOn ? ' · 수신자' : '') + ')' }),
-        ...detailBody,
       ]);
 
       list.appendChild(el('div', { class: 'group-card' + (notifyOn ? '' : ' off') }, [
         el('div', { class: 'group-head' }, [labelInput, notifySelect, delBtn]),
-        words,
         details,
       ]));
     });
@@ -883,7 +870,7 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
     let note;
     if (selected.length === 0) note = '적용 상임위 — 전체';
     else note = '적용 상임위 — ' + selected.length + '개 선택';
-    if (stale.length) note += ' (없는 세션 ' + stale.length + '개 — 이 그룹은 해당 상임위에서 동작하지 않습니다)';
+    if (stale.length) note += ' (없는 상임위 ' + stale.length + '개 — 이 키워드는 그쪽에서 동작하지 않습니다)';
 
     return el('div', { class: 'scope' }, [
       el('div', { class: 'scope-label' + (stale.length ? ' warn' : ''), text: note }),
@@ -891,33 +878,33 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
     ]);
   }
 
-  /** 그룹 전용 수신자. 비우면 알림 탭의 기본 수신자로 간다. */
-  function buildGroupMail(g, gi) {
-    const input = el('input', {
-      type: 'text',
-      placeholder: '비우면 기본 수신자로 발송 (쉼표로 여러 명)',
-      value: (g.emails || []).join(', '),
-    });
-    input.addEventListener('input', () => {
-      groups[gi].emails = input.value.split(',').map((s) => s.trim()).filter(Boolean);
-    });
-    return el('div', { class: 'field' }, [
-      el('div', { class: 'field-label', text: '이 키워드 전용 수신자 — 비우면 "알림 설정"의 기본 수신자로 갑니다' }),
-      input,
-    ]);
-  }
-
   $('#addGroupBtn').addEventListener('click', () => {
-    groups.push({ label: '', dept: '', notify: true, sessions: [], emails: [], patterns: [] });
+    groups.push({ label: '', dept: '', notify: true, sessions: [] });
     renderGroups();
   });
 
   $('#saveKeywordsBtn').addEventListener('click', async () => {
     try {
-      const result = await api('/api/keywords', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ groups }) });
+      // 단어 하나 = 카드 하나이므로 patterns는 이름 그대로 하나만 저장한다.
+      // (매칭 엔진은 여전히 patterns 배열을 읽으므로 파일 형식은 그대로다.)
+      const payload = groups.map((g) => {
+        const label = (g.label || '').trim();
+        return {
+          label,
+          dept: (g.dept || '').trim(),
+          notify: g.notify !== false,
+          sessions: g.sessions || [],
+          patterns: [label],
+        };
+      });
+      const result = await api('/api/keywords', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groups: payload }),
+      });
       showBanner(
         result.reloaded
-          ? '키워드가 저장되고, 실행 중인 감시에 즉시 반영되었습니다 (' + result.groupCount + '개 그룹).'
+          ? '키워드가 저장되고, 실행 중인 감시에 즉시 반영되었습니다 (' + result.groupCount + '개).'
           : '키워드가 저장되었습니다.',
       );
     } catch (e) {
@@ -927,7 +914,21 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
 
   async function loadKeywords() {
     const kw = await api('/api/keywords');
-    groups = kw.groups || [];
+    // 예전 형식(한 카드에 표기 여러 개)은 표기마다 카드로 펼친다. 그대로
+    // 두면 화면에 이름만 보이고 나머지 표기는 숨은 채로 저장 때 사라진다.
+    groups = [];
+    for (const g of kw.groups || []) {
+      const pats = (g.patterns || []).filter(Boolean);
+      const labels = pats.length ? pats : [g.label];
+      labels.forEach((label) => {
+        groups.push({
+          label,
+          dept: g.dept || '',
+          notify: g.notify === undefined ? true : Boolean(g.notify),
+          sessions: Array.isArray(g.sessions) ? [...g.sessions] : [],
+        });
+      });
+    }
     renderGroups();
   }
 
@@ -1025,6 +1026,23 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
     } catch (e) {
       out.textContent = '실패: ' + e.message;
       showBanner('테스트 발송 실패: ' + e.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('#testToastBtn').addEventListener('click', async () => {
+    const btn = $('#testToastBtn');
+    const out = $('#toastTestResult');
+    btn.disabled = true;
+    out.textContent = '알림 띄우는 중...';
+    try {
+      const r = await api('/api/notify/test-toast', { method: 'POST' });
+      out.textContent = '알림을 띄웠습니다 (' + r.method + '). 화면 오른쪽 아래를 확인하세요.';
+      showBanner('Windows 알림을 띄웠습니다.');
+    } catch (e) {
+      out.textContent = '실패: ' + e.message;
+      showBanner('알림 테스트 실패: ' + e.message, true);
     } finally {
       btn.disabled = false;
     }

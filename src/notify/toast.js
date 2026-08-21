@@ -22,26 +22,47 @@ try {
   notifier = null;
 }
 
+/**
+ * 3단 폴백을 순서대로 시도하고, 성공한 방식의 이름을 돌려준다.
+ * @returns {Promise<string>} 'node-notifier' | 'powershell' | 'msg.exe'
+ */
+async function showToast(title, message) {
+  const attempts = [
+    ['node-notifier', () => sendViaNodeNotifier(title, message)],
+    ['powershell', () => sendViaPowerShellToast(title, message)],
+    ['msg.exe', () => sendViaMsgExe(message, title)],
+  ];
+
+  const failures = [];
+  for (const [name, attempt] of attempts) {
+    try {
+      await attempt();
+      return name;
+    } catch (err) {
+      failures.push(`${name}: ${err.message}`);
+    }
+  }
+  // 세 방식이 각각 왜 실패했는지 남긴다 — "그냥 실패"로는 원인을 못 좁힌다.
+  throw new Error(`Windows 알림 3단 폴백 전부 실패 — ${failures.join(' / ')}`);
+}
+
 async function send(payload) {
   const title = `[${payload.session}] ${payload.group} 감지`;
   const message = `${payload.keyword} — ${payload.text}`.slice(0, 200);
+  await showToast(title, message);
+}
 
-  const attempts = [
-    () => sendViaNodeNotifier(title, message),
-    () => sendViaPowerShellToast(title, message),
-    () => sendViaMsgExe(message, title),
-  ];
-
-  let lastErr = null;
-  for (const attempt of attempts) {
-    try {
-      await attempt();
-      return;
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-  throw lastErr || new Error('토스트 알림 3단 폴백 전부 실패');
+/**
+ * 테스트 알림. 실제 키워드가 걸릴 때까지 기다리지 않고 확인할 수 있어야
+ * 한다 — 메일 테스트와 같은 이유다.
+ * @returns {Promise<{method: string}>}
+ */
+async function sendTest() {
+  const method = await showToast(
+    '[국캐치] 알림 테스트',
+    '키워드가 감지되면 이런 알림이 뜹니다.',
+  );
+  return { method };
 }
 
 function sendViaNodeNotifier(title, message) {
@@ -88,4 +109,4 @@ function sendViaMsgExe(message, title) {
 }
 
 // alerting: 사용자를 방해하는 채널. 그룹이 '알림x'면 건너뛴다.
-module.exports = { name: 'toast', alerting: true, send };
+module.exports = { name: 'toast', alerting: true, send, sendTest };
