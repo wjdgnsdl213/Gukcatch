@@ -81,6 +81,15 @@ function validateKeywords(data) {
     if (g.priority && !['high', 'normal'].includes(g.priority)) {
       throw new Error(`groups[${i}](${g.label}).priority는 "high" 또는 "normal"이어야 합니다`);
     }
+    // sessions는 선택 항목이다. 없거나 빈 배열이면 전체 상임위에 적용된다.
+    if (g.sessions !== undefined) {
+      if (!Array.isArray(g.sessions)) {
+        throw new Error(`groups[${i}](${g.label}).sessions는 배열이어야 합니다`);
+      }
+      if (g.sessions.some((s) => typeof s !== 'string' || !s.trim())) {
+        throw new Error(`groups[${i}](${g.label}).sessions에 빈 값이 있습니다`);
+      }
+    }
   });
 }
 

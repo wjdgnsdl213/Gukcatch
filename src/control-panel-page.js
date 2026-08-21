@@ -364,6 +364,67 @@ const PAGE_HTML = `<!doctype html>
     color: #92400e;
   }
 
+  /* ── 고급 설정 (접힘) ───────────────────────────────────────────── */
+  .advanced {
+    background: var(--canvas);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-lg);
+    padding: 0 var(--s-lg);
+    margin-bottom: var(--s-lg);
+  }
+  .advanced summary {
+    cursor: pointer;
+    padding: var(--s-md) 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    list-style: none;
+  }
+  .advanced summary::-webkit-details-marker { display: none; }
+  .advanced summary::before { content: "▸ "; color: var(--muted-soft); }
+  .advanced[open] summary { color: var(--ink); border-bottom: 1px solid var(--hairline-soft); margin-bottom: var(--s-md); }
+  .advanced[open] summary::before { content: "▾ "; }
+  .advanced .grid4 { padding-bottom: var(--s-lg); margin-bottom: 0; }
+
+  /* 체크박스 + 라벨을 한 줄로 */
+  .inline-check {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--body);
+    margin-bottom: 0;
+    cursor: pointer;
+  }
+
+  /* ── 그룹 적용 상임위 선택 ──────────────────────────────────────── */
+  .scope { margin-top: var(--s-sm); }
+  .scope .scope-label { font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: var(--s-xxs); }
+  .scope-opts { display: flex; flex-wrap: wrap; gap: var(--s-xs); }
+  .scope-opts label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-xxs);
+    background: var(--surface-card);
+    border: 1px solid transparent;
+    padding: var(--s-xxs) var(--s-sm);
+    border-radius: var(--r-pill);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--body);
+    margin-bottom: 0;
+    cursor: pointer;
+  }
+  .scope-opts label.on { background: var(--canvas); border-color: var(--ink); color: var(--ink); }
+  .scope-opts label.stale {
+    background: color-mix(in srgb, var(--warning) 12%, white);
+    border-color: color-mix(in srgb, var(--warning) 40%, white);
+    color: #92400e;
+  }
+  .scope-opts label.stale button { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+  .scope-opts input { margin: 0; }
+  .scope .scope-label.warn { color: #92400e; }
+
   @media (max-width: 900px) {
     .grid4 { grid-template-columns: repeat(2, 1fr); }
     header { gap: var(--s-sm); padding: 0 var(--s-md); }
@@ -393,12 +454,25 @@ const PAGE_HTML = `<!doctype html>
 
   <section id="panel-sessions" class="panel active">
     <div class="card">
-      <h2>전역 설정</h2>
+      <h2>감시 세션 (상임위)</h2>
+      <table id="sessionTable">
+        <thead><tr><th style="width:25%">이름</th><th>URL</th><th style="width:76px"></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <button class="btn" id="addSessionBtn">+ 세션 추가</button>
+
+      <label class="inline-check" style="margin-top:20px">
+        <input type="checkbox" id="cfgHeadless" /> 헤드리스 모드 (끄면 브라우저 창이 보입니다)
+      </label>
+    </div>
+
+    <details class="advanced">
+      <summary>고급 설정</summary>
+      <div class="hint" style="margin:12px 0 16px">
+        기본값으로 두어도 됩니다. 자막이 문장 중간에 끊기면 <b>확정 대기</b>를,
+        같은 키워드 알림이 잦으면 <b>재알림 쿨다운</b>을 올리세요.
+      </div>
       <div class="grid4">
-        <div>
-          <label><input type="checkbox" id="cfgHeadless" /> 헤드리스 모드</label>
-          <div class="hint" style="margin:4px 0 0">끄면 브라우저 창이 보입니다 (시연용 기본값)</div>
-        </div>
         <div>
           <label>확정 대기(ms)</label>
           <input type="number" id="cfgSettleMs" value="1800" />
@@ -411,23 +485,12 @@ const PAGE_HTML = `<!doctype html>
           <label>회의당 캡처 상한</label>
           <input type="number" id="cfgMaxShots" value="200" />
         </div>
-      </div>
-      <div class="row">
         <div>
           <label>키워드 재알림 쿨다운(ms)</label>
           <input type="number" id="cfgCooldownMs" value="60000" />
         </div>
       </div>
-    </div>
-
-    <div class="card">
-      <h2>감시 세션 (상임위)</h2>
-      <table id="sessionTable">
-        <thead><tr><th style="width:25%">이름</th><th>URL</th><th style="width:76px"></th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <button class="btn" id="addSessionBtn">+ 세션 추가</button>
-    </div>
+    </details>
 
     <button class="btn primary" id="saveConfigBtn">설정 저장</button>
   </section>
@@ -630,12 +693,70 @@ const PAGE_HTML = `<!doctype html>
         el('div', { class: 'group-head' }, [labelInput, deptInput, prioritySelect, delGroupBtn]),
         patternsDiv,
         el('div', { class: 'pattern-input' }, [patInput]),
+        buildScope(g, gi),
       ]));
     });
   }
 
+  /**
+   * 그룹의 적용 상임위 선택. 아무것도 체크하지 않으면 전체 적용이다 —
+   * "전체" 체크박스를 따로 두지 않고 빈 선택을 전체로 해석해서, 세션을
+   * 새로 추가했을 때 기존 그룹이 자동으로 그 세션까지 커버하게 한다.
+   */
+  function buildScope(g, gi) {
+    const names = sessions.map((s) => (s.name || '').trim()).filter(Boolean);
+    const selected = Array.isArray(g.sessions) ? g.sessions : [];
+    const opts = el('div', { class: 'scope-opts' });
+
+    if (names.length === 0) {
+      opts.appendChild(el('span', { class: 'hint', style: 'margin:0', text: '세션을 먼저 등록하면 상임위를 지정할 수 있습니다.' }));
+    }
+
+    names.forEach((name) => {
+      const cb = el('input', { type: 'checkbox' });
+      cb.checked = selected.includes(name);
+      const wrap = el('label', cb.checked ? { class: 'on' } : {}, [cb, el('span', { text: name })]);
+      cb.addEventListener('change', () => {
+        const cur = new Set(groups[gi].sessions || []);
+        if (cb.checked) cur.add(name); else cur.delete(name);
+        groups[gi].sessions = [...cur];
+        renderGroups();
+      });
+      opts.appendChild(wrap);
+    });
+
+    // 세션 이름이 바뀌거나 삭제되면 그룹의 지정이 조용히 무효가 된다
+    // (그 그룹은 어디에도 매칭되지 않는데 화면상 이유가 안 보인다).
+    // 없어진 이름을 그대로 드러내고 지울 수 있게 한다.
+    const stale = selected.filter((n) => !names.includes(n));
+    stale.forEach((name) => {
+      const wrap = el('label', { class: 'stale' }, [
+        el('span', { text: '⚠ ' + name }),
+        el('button', {
+          type: 'button',
+          text: '×',
+          onclick: () => {
+            groups[gi].sessions = (groups[gi].sessions || []).filter((x) => x !== name);
+            renderGroups();
+          },
+        }),
+      ]);
+      opts.appendChild(wrap);
+    });
+
+    let note;
+    if (selected.length === 0) note = '적용 상임위 — 전체';
+    else note = '적용 상임위 — ' + selected.length + '개 선택';
+    if (stale.length) note += ' (없는 세션 ' + stale.length + '개 — 이 그룹은 해당 상임위에서 동작하지 않습니다)';
+
+    return el('div', { class: 'scope' }, [
+      el('div', { class: 'scope-label' + (stale.length ? ' warn' : ''), text: note }),
+      opts,
+    ]);
+  }
+
   $('#addGroupBtn').addEventListener('click', () => {
-    groups.push({ label: '', dept: '', priority: 'normal', patterns: [] });
+    groups.push({ label: '', dept: '', priority: 'normal', sessions: [], patterns: [] });
     renderGroups();
   });
 
@@ -930,7 +1051,11 @@ const PAGE_HTML = `<!doctype html>
     loadReportFiles(),
     loadReportList(),
     api('/api/monitor/status').then(applyStatus),
-  ]).catch((e) => showBanner('초기 로드 실패: ' + e.message, true));
+  ])
+    // 키워드 그룹의 "적용 상임위" 체크박스는 세션 목록이 있어야 그릴 수 있는데
+    // 두 로드가 동시에 돌아 순서가 보장되지 않는다. 둘 다 끝난 뒤 한 번 더 그린다.
+    .then(() => renderGroups())
+    .catch((e) => showBanner('초기 로드 실패: ' + e.message, true));
   connectEvents();
 })();
 </script>

@@ -133,8 +133,10 @@ async function runReportPipeline({
   });
 
   // ── 키워드 필터 ──────────────────────────────────────────────────────
+  // 알림과 같은 규칙으로 거른다 — 그룹에 "적용 상임위"가 지정돼 있으면
+  // 이 회의의 상임위에 해당하는 그룹만 본다.
   const groups = keywordsPath ? loadKeywords(keywordsPath) : [];
-  const matcher = new KeywordMatcher(groups);
+  const matcher = new KeywordMatcher(groups, { sessionName });
   const 대상 = [];
   const 제외 = [];
 

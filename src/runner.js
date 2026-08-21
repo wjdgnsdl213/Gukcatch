@@ -62,9 +62,13 @@ async function runAll({
   // 재시작 없이 즉시 반영)를 위해 나중에 다시 접근할 수 있도록 세션 설정과
   // 짝지어 둔다 — Promise.allSettled 결과가 나온 뒤에야 어느 세션이 실제로
   //떴는지 알 수 있으므로, 성공한 세션의 matcher만 추려서 보관한다.
+  // sessionName을 넘겨 그룹의 "적용 상임위" 지정을 매처가 직접 거르게 한다.
   const matcherEntries = sessions.map((s) => ({
     sessionConfig: s,
-    matcher: new KeywordMatcher(keywordGroups, { cooldownMs }),
+    matcher: new KeywordMatcher(keywordGroups, {
+      cooldownMs,
+      sessionName: s.name || s.url,
+    }),
   }));
 
   const results = await Promise.allSettled(

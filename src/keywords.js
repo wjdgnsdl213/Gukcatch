@@ -29,15 +29,38 @@ function loadKeywords(filePath) {
     label: g.label,
     dept: g.dept || null,
     priority: g.priority || 'normal',
+    // 적용 상임위. 비어 있으면 전체 적용 — 기존 keywords.json에는 이 필드가
+    // 없으므로 "없음 = 전체"여야 하위 호환이 유지된다.
+    // 기관 하나가 여러 상임위를 감시할 때 관심 키워드는 대체로 공통이라
+    // 세션별로 목록을 통째로 나누면 같은 키워드를 반복 입력하게 된다.
+    // 그래서 목록은 하나로 두고 그룹 단위로만 범위를 좁힌다.
+    sessions: Array.isArray(g.sessions) ? g.sessions.filter(Boolean) : [],
     patterns: (g.patterns || []).map((p) => ({ raw: p, normalized: normalize(p) })),
   }));
 }
 
+/** 이 그룹이 해당 상임위에 적용되는가. sessions가 비면 전체 적용. */
+function appliesToSession(group, sessionName) {
+  if (!group.sessions || group.sessions.length === 0) return true;
+  if (!sessionName) return true; // 세션을 모르면 거르지 않는다 (보수적)
+  return group.sessions.includes(sessionName);
+}
+
 class KeywordMatcher {
-  constructor(groups, { cooldownMs = DEFAULT_COOLDOWN_MS } = {}) {
-    this.groups = groups;
+  /**
+   * @param {string} [sessionName] - 지정하면 그 상임위에 적용되는 그룹만 본다.
+   *   runner.js가 세션마다 매처를 따로 만들므로 여기서 한 번만 걸러두면 된다.
+   */
+  constructor(groups, { cooldownMs = DEFAULT_COOLDOWN_MS, sessionName = null } = {}) {
+    this.sessionName = sessionName;
+    this.groups = this._scope(groups);
+    this.allGroups = groups; // 핫 리로드 시 원본 유지 (setGroups가 다시 거른다)
     this.cooldownMs = cooldownMs;
     this.lastHitAt = new Map(); // group.label -> timestamp(ms)
+  }
+
+  _scope(groups) {
+    return (groups || []).filter((g) => appliesToSession(g, this.sessionName));
   }
 
   get enabled() {
@@ -50,7 +73,8 @@ class KeywordMatcher {
    * 사라진 그룹의 잔여 기록은 그냥 안 쓰일 뿐 해가 없다.
    */
   setGroups(groups) {
-    this.groups = groups;
+    this.allGroups = groups;
+    this.groups = this._scope(groups);
   }
 
   /** 텍스트 한 줄에서 매칭되는 그룹을 전부 찾는다 (쿨다운 적용 전). */
@@ -91,4 +115,4 @@ class KeywordMatcher {
   }
 }
 
-module.exports = { loadKeywords, normalize, KeywordMatcher, DEFAULT_COOLDOWN_MS };
+module.exports = { loadKeywords, normalize, KeywordMatcher, appliesToSession, DEFAULT_COOLDOWN_MS };
