@@ -9,51 +9,52 @@ const PAGE_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8" />
 <title>국캐치 — 제어판</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
 <style>
-  /* ── 디자인 토큰 (DESIGN-cal.md) ────────────────────────────────────
-     Cal.com 디자인 시스템. 흰 캔버스 + 근접-검정 CTA + 연회색 카드.
-     색은 전부 여기서만 정의한다 — 나중에 팔레트만 갈아끼울 수 있게.
+  /* ── 디자인 토큰 (Apple 계열) ───────────────────────────────────────
+     흰 카드 + #f5f5f7 바탕 + 파란 pill 버튼. iOS 설정 화면의 질감을
+     제어판에 옮겼다.
 
-     원본 스펙은 마케팅 페이지용이라 섹션 리듬이 96px인데, 제어판은
-     정보 밀도가 높은 앱 UI라 그대로 쓰면 스크롤만 길어진다. 카드 간격은
-     spacing.lg(24px), 카드 내부 여백은 spacing.xl(32px)로 조였다.
-     그 외 색·타이포·라운드·컴포넌트 규칙은 스펙 그대로 따른다.
-
-     폰트는 Inter를 CDN에서 받되 시스템 스택으로 폴백한다. 이 도구는
-     회의 중 오프라인에서도 떠야 하는데, Windows의 Segoe UI가 Inter와
-     성격이 가까워 폰트를 못 받아도 레이아웃이 깨지지 않는다. */
+     웹폰트를 쓰지 않는다. 애플의 SF Pro는 배포 폰트가 아니고, 이 도구는
+     회의 중 오프라인에서도 떠야 한다. Windows의 Segoe UI Variable이
+     SF Pro와 성격이 가까워 시스템 스택만으로 충분히 그 느낌이 난다.
+     (CDN 링크를 없애면서 네트워크 의존도 함께 사라졌다.) */
   :root {
-    /* colors */
-    --primary: #111111;
-    --primary-active: #242424;
-    --primary-disabled: #e5e7eb;
-    --ink: #111111;
-    --body: #374151;
-    --muted: #6b7280;
-    --muted-soft: #898989;
-    --hairline: #e5e7eb;
-    --hairline-soft: #f3f4f6;
-    --canvas: #ffffff;
-    --surface-soft: #f8f9fa;
-    --surface-card: #f5f5f5;
-    --surface-strong: #e5e7eb;
-    --on-primary: #ffffff;
-    --brand-accent: #3b82f6;
-    --success: #10b981;
-    --warning: #f59e0b;
-    --error: #ef4444;
-    --badge-violet: #8b5cf6;
+    /* 강조 — 애플의 액션 색은 검정이 아니라 파랑이다 */
+    --blue: #0071e3;
+    --blue-press: #0058b0;
+    --blue-soft: #e8f2fd;
 
-    /* rounded */
-    --r-sm: 6px;
-    --r-md: 8px;
-    --r-lg: 12px;
-    --r-pill: 9999px;
+    /* 글자 */
+    --text: #1d1d1f;
+    --text-2: #6e6e73;
+    --text-3: #86868b;
+    --on-accent: #ffffff;
 
-    /* spacing */
+    /* 면 */
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --fill: #f5f5f7;
+    --fill-strong: #e8e8ed;
+
+    /* 선 */
+    --sep: #d2d2d7;
+    --sep-soft: #e8e8ed;
+
+    /* 의미색 (iOS 시스템 컬러) */
+    --green: #248a3d;
+    --green-soft: #e7f6ec;
+    --orange: #b25000;
+    --orange-soft: #fff4e5;
+    --red: #d70015;
+    --red-soft: #ffeceb;
+
+    /* 라운드 — 애플은 컨트롤도 카드도 크게 굴린다 */
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 18px;
+    --r-pill: 980px;
+
+    /* 간격 */
     --s-xxs: 4px;
     --s-xs: 8px;
     --s-sm: 12px;
@@ -61,33 +62,36 @@ const PAGE_HTML = `<!doctype html>
     --s-lg: 24px;
     --s-xl: 32px;
 
-    /* type */
-    --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", Roboto, sans-serif;
-    --font-code: "JetBrains Mono", ui-monospace, Consolas, monospace;
+    --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text",
+               "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    --font-code: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
 
-    /* elevation — 스펙의 soft/modern 두 단계만 쓴다 */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    /* 그림자 — 애플은 거의 안 쓰고, 쓸 때도 아주 옅다 */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
   }
 
   * { box-sizing: border-box; }
 
   body {
     font-family: var(--font-ui);
-    font-size: 16px;
-    line-height: 1.5;
+    font-size: 15px;
+    line-height: 1.47;
+    letter-spacing: -0.01em;
     margin: 0;
-    background: var(--canvas);
-    color: var(--body);
+    background: var(--bg);
+    color: var(--text);
     -webkit-font-smoothing: antialiased;
   }
 
-  /* ── top-nav (64px, 흰 캔버스, hairline 마감) ────────────────────── */
+  /* ── 헤더 — 반투명 + 블러 (애플 내비게이션의 질감) ────────────────── */
   header {
-    height: 64px;
+    height: 56px;
     padding: 0 var(--s-lg);
-    background: var(--canvas);
-    border-bottom: 1px solid var(--hairline);
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--sep-soft);
     display: flex;
     align-items: center;
     gap: var(--s-lg);
@@ -97,40 +101,43 @@ const PAGE_HTML = `<!doctype html>
   }
   header h1 {
     margin: 0;
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 600;
-    letter-spacing: -0.3px;
-    color: var(--ink);
+    letter-spacing: -0.02em;
+    color: var(--text);
     white-space: nowrap;
   }
 
-  /* nav-pill-group — 스펙의 시그니처 컴포넌트(pill 안의 pill) */
+  /* iOS 세그먼티드 컨트롤 — 회색 트랙 위에 흰 알약이 얹힌 형태 */
   nav {
     display: flex;
-    gap: var(--s-xxs);
-    flex: 1;
-    background: var(--surface-soft);
-    border-radius: var(--r-pill);
-    padding: 6px;
+    gap: 2px;
+    background: var(--fill-strong);
+    border-radius: var(--r-sm);
+    padding: 2px;
     width: fit-content;
     flex-grow: 0;
   }
   nav button {
     background: transparent;
     border: none;
-    color: var(--muted);
-    padding: var(--s-xs) 14px;
-    border-radius: var(--r-md);
+    color: var(--text-2);
+    padding: 6px 14px;
+    border-radius: 7px;
     cursor: pointer;
     font-family: inherit;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
+    letter-spacing: -0.01em;
     white-space: nowrap;
+    transition: color 0.15s ease;
   }
+  nav button:hover { color: var(--text); }
   nav button.active {
-    background: var(--canvas);
-    color: var(--ink);
-    box-shadow: var(--shadow-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 600;
+    box-shadow: var(--shadow-xs);
   }
 
   .spacer { flex: 1; }
@@ -138,157 +145,214 @@ const PAGE_HTML = `<!doctype html>
   #statusBadge {
     font-size: 13px;
     font-weight: 500;
-    padding: var(--s-xxs) var(--s-sm);
+    padding: 5px var(--s-sm);
     border-radius: var(--r-pill);
-    background: var(--surface-card);
-    color: var(--muted);
+    background: var(--fill-strong);
+    color: var(--text-2);
     white-space: nowrap;
   }
-  #statusBadge.running {
-    background: color-mix(in srgb, var(--success) 12%, white);
-    color: #047857;
-  }
+  #statusBadge.running { background: var(--green-soft); color: var(--green); }
 
-  /* ── 버튼 ────────────────────────────────────────────────────────
-     스펙상 액션 레이어는 모노크롬이다. 다만 "감시 중지"는 되돌리기
-     번거로운 동작이라 secondary 형태에 error 색 테두리/글자만 입혔다 —
-     배경까지 빨갛게 칠하면 스펙의 모노크롬 원칙에서 너무 멀어진다. */
+  /* ── 버튼 — 애플의 시그니처인 완전 라운드 알약 ──────────────────── */
   #monitorBtn, .btn {
     font-family: inherit;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1;
-    border-radius: var(--r-md);
+    letter-spacing: -0.01em;
+    border-radius: var(--r-pill);
     cursor: pointer;
-    padding: var(--s-sm) 20px;
-    height: 40px;
+    padding: 11px 20px;
+    height: 38px;
     border: 1px solid transparent;
     white-space: nowrap;
-    transition: background-color 0.12s ease;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
   }
-  #monitorBtn.start { background: var(--primary); color: var(--on-primary); }
-  #monitorBtn.start:active { background: var(--primary-active); }
-  #monitorBtn.stop {
-    background: var(--canvas);
-    color: var(--error);
-    border-color: var(--error);
-  }
-  .btn {
-    background: var(--canvas);
-    color: var(--ink);
-    border-color: var(--hairline);
-  }
-  .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-  .btn.primary:active { background: var(--primary-active); }
-  .btn.danger { background: var(--canvas); color: var(--error); border-color: var(--hairline); }
-  .btn.small { padding: var(--s-xs) var(--s-sm); height: 32px; font-size: 13px; }
+  #monitorBtn.start { background: var(--blue); color: var(--on-accent); }
+  #monitorBtn.start:hover { background: #0077ed; }
+  #monitorBtn.start:active { background: var(--blue-press); }
+  /* 되돌리기 번거로운 동작이라 빨간 글자로 구분하되, 배경까지 칠하지는
+     않는다 — 애플도 파괴적 동작을 색 글자로만 표시한다 */
+  #monitorBtn.stop { background: var(--surface); color: var(--red); border-color: var(--sep); }
+  #monitorBtn.stop:hover { background: var(--red-soft); }
+
+  .btn { background: var(--surface); color: var(--blue); border-color: var(--sep); }
+  .btn:hover { background: var(--fill); }
+  .btn.primary { background: var(--blue); color: var(--on-accent); border-color: transparent; }
+  .btn.primary:hover { background: #0077ed; }
+  .btn.primary:active { background: var(--blue-press); }
+  .btn.danger { background: var(--surface); color: var(--red); border-color: var(--sep); }
+  .btn.danger:hover { background: var(--red-soft); }
+  .btn.small { padding: 7px 14px; height: 30px; font-size: 13px; }
   .btn:disabled, #monitorBtn:disabled {
-    background: var(--primary-disabled);
-    color: var(--muted);
+    background: var(--fill-strong);
+    color: var(--text-3);
     border-color: transparent;
     cursor: not-allowed;
   }
 
   /* ── 레이아웃 ───────────────────────────────────────────────────── */
-  main { padding: var(--s-xl) var(--s-lg); max-width: 1200px; margin: 0 auto; }
+  main { padding: var(--s-xl) var(--s-lg) 64px; max-width: 1100px; margin: 0 auto; }
   .panel { display: none; }
   .panel.active { display: block; }
 
-  /* feature-card: 연회색 면, 12px 라운드 */
+  /* 흰 카드 + 큰 라운드 — iOS 설정 화면의 섹션 */
   .card {
-    background: var(--surface-card);
+    background: var(--surface);
     border-radius: var(--r-lg);
-    padding: var(--s-xl);
-    margin-bottom: var(--s-lg);
+    padding: var(--s-lg) var(--s-xl);
+    margin-bottom: var(--s-md);
+    box-shadow: var(--shadow-xs);
   }
   .card h2 {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 600;
-    margin: 0 0 var(--s-md) 0;
-    color: var(--ink);
-    letter-spacing: -0.2px;
+    margin: 0 0 var(--s-sm) 0;
+    color: var(--text);
+    letter-spacing: -0.02em;
   }
 
   /* ── 폼 ─────────────────────────────────────────────────────────── */
-  label { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: var(--s-xxs); }
+  label { display: block; font-size: 13px; font-weight: 400; color: var(--text-2); margin-bottom: 6px; }
   input[type=text], input[type=number], select {
     width: 100%;
-    height: 40px;
-    background: var(--canvas);
-    border: 1px solid var(--hairline);
-    color: var(--ink);
-    padding: 10px 14px;
+    height: 38px;
+    background: var(--surface);
+    border: 1px solid var(--sep);
+    color: var(--text);
+    padding: 9px 13px;
     border-radius: var(--r-md);
     font-family: inherit;
     font-size: 15px;
+    letter-spacing: -0.01em;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
+  input[type=text]::placeholder { color: var(--text-3); }
   input[type=text]:focus, input[type=number]:focus, select:focus {
     outline: none;
-    border-color: var(--ink);
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3.5px var(--blue-soft);
   }
-  input[type=checkbox] { width: auto; margin-right: var(--s-xs); accent-color: var(--primary); }
+  input[type=checkbox] { width: auto; margin-right: var(--s-xs); accent-color: var(--blue); }
   .row { display: flex; gap: var(--s-sm); margin-bottom: var(--s-sm); align-items: end; }
   .row > div { flex: 1; }
   .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-sm); margin-bottom: var(--s-md); }
 
   table { width: 100%; border-collapse: collapse; margin-bottom: var(--s-sm); }
-  th, td { text-align: left; padding: var(--s-xs); font-size: 14px; border-bottom: 1px solid var(--hairline); }
-  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  th, td { text-align: left; padding: var(--s-xs) 0; font-size: 14px; border-bottom: 1px solid var(--sep-soft); }
+  td { padding-right: var(--s-xs); }
+  th { color: var(--text-3); font-weight: 400; font-size: 12px; text-transform: none; }
 
-  /* 키워드 그룹 — 흰 카드 + hairline (feature-icon-card) */
+  /* 키워드 묶음 — 카드 안의 연회색 블록 */
   .group-card {
-    border: 1px solid var(--hairline);
-    border-radius: var(--r-lg);
-    padding: var(--s-lg);
-    margin-bottom: var(--s-sm);
-    background: var(--canvas);
-  }
-  .group-card.off { background: var(--surface-soft); }
-  .group-head { display: flex; gap: var(--s-xs); margin-bottom: var(--s-md); align-items: center; }
-  .group-head input { flex: 1; font-size: 16px; font-weight: 600; }
-  .group-head select { width: 140px; flex: none; }
-
-  /* 카드 안의 소제목 + 입력 묶음 */
-  .field { margin-bottom: var(--s-md); }
-  .field:last-child { margin-bottom: 0; }
-  .field-label { font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: var(--s-xxs); }
-
-  /* 카드 안에 중첩되는 접기 — 바깥 .advanced보다 한 단계 약하게 */
-  .advanced.sub {
     border: none;
-    border-top: 1px solid var(--hairline-soft);
+    border-radius: var(--r-md);
+    padding: var(--s-md);
+    margin-bottom: var(--s-sm);
+    background: var(--fill);
+  }
+  .group-card.off { opacity: 0.72; }
+  .group-head { display: flex; gap: var(--s-xs); margin-bottom: var(--s-sm); align-items: center; }
+  .group-head input { flex: 1; font-size: 16px; font-weight: 600; letter-spacing: -0.02em; }
+  .group-head select { width: 150px; flex: none; }
+
+  .field { margin-bottom: var(--s-sm); }
+  .field:last-child { margin-bottom: 0; }
+  .field-label { font-size: 13px; color: var(--text-2); margin-bottom: 6px; }
+
+  /* ── 접기 ───────────────────────────────────────────────────────── */
+  .advanced {
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    padding: 0 var(--s-xl);
+    margin-bottom: var(--s-md);
+    box-shadow: var(--shadow-xs);
+  }
+  .advanced summary {
+    cursor: pointer;
+    padding: var(--s-md) 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--blue);
+    list-style: none;
+  }
+  .advanced summary::-webkit-details-marker { display: none; }
+  .advanced summary::before { content: "›"; display: inline-block; margin-right: 8px; transition: transform 0.2s ease; }
+  .advanced[open] summary::before { transform: rotate(90deg); }
+  .advanced[open] summary { border-bottom: 1px solid var(--sep-soft); margin-bottom: var(--s-md); }
+  .advanced .grid4 { padding-bottom: var(--s-lg); margin-bottom: 0; }
+
+  /* 카드 안에 중첩되는 접기 */
+  .advanced.sub {
+    background: transparent;
+    box-shadow: none;
     border-radius: 0;
+    border-top: 1px solid var(--sep-soft);
     padding: 0;
     margin-bottom: 0;
-    background: transparent;
   }
   .advanced.sub summary { padding: var(--s-sm) 0 0; font-size: 13px; }
   .advanced.sub[open] summary { border-bottom: none; margin-bottom: var(--s-sm); }
-  .patterns { display: flex; flex-wrap: wrap; gap: var(--s-xxs); margin-bottom: var(--s-xs); }
+
+  .inline-check {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 0;
+    cursor: pointer;
+  }
+
+  /* ── 칩 ─────────────────────────────────────────────────────────── */
+  .patterns { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--s-xs); }
   .chip {
-    background: var(--surface-card);
-    color: var(--ink);
-    padding: var(--s-xxs) var(--s-sm);
+    background: var(--surface);
+    color: var(--text);
+    padding: 5px var(--s-sm);
     border-radius: var(--r-pill);
     font-size: 13px;
     font-weight: 500;
     display: flex;
     align-items: center;
-    gap: var(--s-xxs);
+    gap: 6px;
+    border: 1px solid var(--sep);
   }
-  .chip button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+  .chip button { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+  .chip button:hover { color: var(--text); }
 
-  /* 키워드 칩 — 🔔 토글 + 이름 + × */
-  .chip.kw { padding: 6px var(--s-sm); font-size: 14px; gap: var(--s-xs); }
-  .chip.kw .bell { font-size: 15px; line-height: 1; }
-  .chip.kw .x { color: var(--muted-soft); font-size: 16px; }
-  /* 알림 끈 키워드는 흐리게 — 목록에서 바로 구분된다 */
-  .chip.kw.off { background: transparent; border: 1px dashed var(--hairline); color: var(--muted); }
-  .chip.kw.off .bell { opacity: 0.55; }
-  .pattern-input { display: flex; gap: var(--s-xxs); }
+  .chip.kw { padding: 6px 13px; font-size: 14px; }
+  .chip.kw .bell { font-size: 14px; line-height: 1; }
+  .chip.kw .x { font-size: 16px; }
+  .chip.kw.off { background: transparent; border-style: dashed; color: var(--text-2); }
+  .chip.kw.off .bell { opacity: 0.5; }
+
+  .pattern-input { display: flex; gap: 6px; }
   .pattern-input input { flex: 1; }
 
-  /* ── 알림 배너 ──────────────────────────────────────────────────── */
+  /* ── 적용 상임위 선택 ───────────────────────────────────────────── */
+  .scope { margin-top: var(--s-sm); }
+  .scope .scope-label { font-size: 13px; color: var(--text-2); margin-bottom: 6px; }
+  .scope .scope-label.warn { color: var(--orange); }
+  .scope-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .scope-opts label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--sep);
+    padding: 5px var(--s-sm);
+    border-radius: var(--r-pill);
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 0;
+    cursor: pointer;
+  }
+  .scope-opts label.on { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
+  .scope-opts label.stale { background: var(--orange-soft); border-color: var(--orange); color: var(--orange); }
+  .scope-opts label.stale button { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+  .scope-opts input { margin: 0; }
+
+  /* ── 배너 ───────────────────────────────────────────────────────── */
   .banner {
     padding: var(--s-sm) var(--s-md);
     border-radius: var(--r-md);
@@ -297,187 +361,102 @@ const PAGE_HTML = `<!doctype html>
     display: none;
     border: 1px solid transparent;
   }
-  .banner.ok {
-    display: block;
-    background: color-mix(in srgb, var(--success) 10%, white);
-    border-color: color-mix(in srgb, var(--success) 30%, white);
-    color: #047857;
-  }
-  .banner.err {
-    display: block;
-    background: color-mix(in srgb, var(--error) 8%, white);
-    border-color: color-mix(in srgb, var(--error) 30%, white);
-    color: #b91c1c;
-  }
+  .banner.ok { display: block; background: var(--green-soft); border-color: #bfe6ca; color: var(--green); }
+  .banner.err { display: block; background: var(--red-soft); border-color: #f7c9c6; color: var(--red); }
 
-  /* ── 키워드 히트 (product-mockup-card: 흰 면 + hairline) ─────────── */
+  /* ── 키워드 히트 ────────────────────────────────────────────────── */
   .hit {
-    background: var(--canvas);
-    border: 1px solid var(--hairline);
-    border-left: 3px solid var(--brand-accent);
-    border-radius: var(--r-lg);
-    padding: var(--s-lg);
-    margin-bottom: var(--s-sm);
+    background: var(--surface);
+    border: 1px solid var(--sep-soft);
+    border-left: 3px solid var(--blue);
+    border-radius: var(--r-md);
+    padding: var(--s-md);
+    margin-bottom: var(--s-xs);
   }
-  .hit.high { border-left-color: var(--error); }
-  .hit .meta { font-size: 13px; color: var(--muted); margin-bottom: var(--s-xs); }
+  .hit.muted { border-left-color: var(--sep); opacity: 0.7; }
+  .hit .meta { font-size: 13px; color: var(--text-3); margin-bottom: 6px; }
   .hit .kw {
     display: inline-block;
-    background: var(--surface-card);
-    color: var(--ink);
-    padding: 2px var(--s-sm);
+    background: var(--blue-soft);
+    color: var(--blue);
+    padding: 2px 10px;
     border-radius: var(--r-pill);
     font-size: 13px;
     font-weight: 500;
-    margin-right: var(--s-xxs);
+    margin-right: 6px;
   }
-  .hit .ctx { font-size: 14px; color: var(--muted); margin-top: var(--s-xs); white-space: pre-line; }
-  .hit img { display: block; margin-top: var(--s-xs); max-width: 480px; max-height: 270px; border-radius: var(--r-md); border: 1px solid var(--hairline); }
+  .hit .ctx { font-size: 14px; color: var(--text-2); margin-top: var(--s-xs); white-space: pre-line; }
+  .hit img { display: block; margin-top: var(--s-xs); max-width: 480px; max-height: 270px; border-radius: var(--r-sm); border: 1px solid var(--sep-soft); }
 
   /* ── 로그 ───────────────────────────────────────────────────────── */
   .log-line {
     font-family: var(--font-code);
-    font-size: 13px;
-    padding: var(--s-xxs) 0;
-    border-bottom: 1px solid var(--hairline-soft);
-    color: var(--body);
+    font-size: 12.5px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--sep-soft);
+    color: var(--text-2);
   }
-  .log-line.error { color: var(--error); }
-  .log-line .t { color: var(--muted-soft); margin-right: var(--s-xs); }
+  .log-line.error { color: var(--red); }
+  .log-line .t { color: var(--text-3); margin-right: var(--s-xs); }
 
-  .empty { color: var(--muted-soft); padding: var(--s-xl); text-align: center; font-size: 14px; }
-  .hint { font-size: 13px; font-weight: 500; color: var(--muted); margin-top: -8px; margin-bottom: var(--s-md); }
+  .empty { color: var(--text-3); padding: var(--s-xl); text-align: center; font-size: 14px; }
+  .hint { font-size: 13px; color: var(--text-2); margin-top: -4px; margin-bottom: var(--s-md); line-height: 1.5; }
 
   /* ── 보고서 항목 ────────────────────────────────────────────────── */
   .rep {
-    background: var(--canvas);
-    border: 1px solid var(--hairline);
-    border-left: 3px solid var(--ink);
-    border-radius: var(--r-lg);
-    padding: var(--s-lg);
-    margin-bottom: var(--s-sm);
+    background: var(--surface);
+    border: 1px solid var(--sep-soft);
+    border-radius: var(--r-md);
+    padding: var(--s-md) var(--s-lg);
+    margin-bottom: var(--s-xs);
   }
-  .rep.high { border-left-color: var(--error); }
-  .rep.unclassified { border-left-color: var(--warning); }
+  .rep.unclassified { border-left: 3px solid var(--orange); }
   .rep .head { display: flex; align-items: baseline; gap: var(--s-xs); flex-wrap: wrap; margin-bottom: var(--s-sm); }
-  .rep .subject { font-weight: 600; font-size: 18px; color: var(--ink); letter-spacing: -0.2px; }
-  .rep .who { font-size: 14px; color: var(--muted); }
+  .rep .subject { font-weight: 600; font-size: 17px; color: var(--text); letter-spacing: -0.02em; }
+  .rep .who { font-size: 14px; color: var(--text-2); }
   .rep .kw {
     display: inline-block;
-    background: var(--surface-card);
-    color: var(--ink);
-    padding: 2px var(--s-sm);
+    background: var(--blue-soft);
+    color: var(--blue);
+    padding: 2px 10px;
     border-radius: var(--r-pill);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
   }
-  .rep dl { margin: 0; font-size: 15px; line-height: 1.6; }
-  .rep dt { color: var(--muted); font-size: 13px; font-weight: 500; margin-top: var(--s-sm); }
-  .rep dd { margin: 2px 0 0; color: var(--body); }
-  .rep .foot { margin-top: var(--s-sm); font-size: 13px; color: var(--muted-soft); font-family: var(--font-code); }
+  .rep dl { margin: 0; font-size: 15px; line-height: 1.55; }
+  .rep dt { color: var(--text-3); font-size: 12px; margin-top: var(--s-sm); }
+  .rep dd { margin: 2px 0 0; color: var(--text); }
+  .rep .foot { margin-top: var(--s-sm); font-size: 12px; color: var(--text-3); font-family: var(--font-code); }
 
   .verify {
     font-size: 14px;
     padding: var(--s-sm) var(--s-md);
     border-radius: var(--r-md);
-    margin-bottom: var(--s-md);
-    background: var(--surface-soft);
-    border: 1px solid var(--hairline);
-    color: var(--body);
+    margin-bottom: var(--s-sm);
+    background: var(--fill);
+    color: var(--text-2);
   }
-  .verify.warn {
-    background: color-mix(in srgb, var(--warning) 10%, white);
-    border-color: color-mix(in srgb, var(--warning) 35%, white);
-    color: #92400e;
-  }
-
-  /* ── 고급 설정 (접힘) ───────────────────────────────────────────── */
-  .advanced {
-    background: var(--canvas);
-    border: 1px solid var(--hairline);
-    border-radius: var(--r-lg);
-    padding: 0 var(--s-lg);
-    margin-bottom: var(--s-lg);
-  }
-  .advanced summary {
-    cursor: pointer;
-    padding: var(--s-md) 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--muted);
-    list-style: none;
-  }
-  .advanced summary::-webkit-details-marker { display: none; }
-  .advanced summary::before { content: "▸ "; color: var(--muted-soft); }
-  .advanced[open] summary { color: var(--ink); border-bottom: 1px solid var(--hairline-soft); margin-bottom: var(--s-md); }
-  .advanced[open] summary::before { content: "▾ "; }
-  .advanced .grid4 { padding-bottom: var(--s-lg); margin-bottom: 0; }
-
-  /* 체크박스 + 라벨을 한 줄로 */
-  .inline-check {
-    display: flex;
-    align-items: center;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--body);
-    margin-bottom: 0;
-    cursor: pointer;
-  }
-
-  /* ── 그룹 적용 상임위 선택 ──────────────────────────────────────── */
-  .scope { margin-top: var(--s-sm); }
-  .scope .scope-label { font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: var(--s-xxs); }
-  .scope-opts { display: flex; flex-wrap: wrap; gap: var(--s-xs); }
-  .scope-opts label {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--s-xxs);
-    background: var(--surface-card);
-    border: 1px solid transparent;
-    padding: var(--s-xxs) var(--s-sm);
-    border-radius: var(--r-pill);
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--body);
-    margin-bottom: 0;
-    cursor: pointer;
-  }
-  .scope-opts label.on { background: var(--canvas); border-color: var(--ink); color: var(--ink); }
-  .scope-opts label.stale {
-    background: color-mix(in srgb, var(--warning) 12%, white);
-    border-color: color-mix(in srgb, var(--warning) 40%, white);
-    color: #92400e;
-  }
-  .scope-opts label.stale button { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
-  .scope-opts input { margin: 0; }
-  .scope .scope-label.warn { color: #92400e; }
+  .verify.ok { background: var(--green-soft); color: var(--green); }
+  .verify.warn { background: var(--orange-soft); color: var(--orange); }
 
   .envblock {
     font-family: var(--font-code);
     font-size: 13px;
     line-height: 1.7;
-    background: var(--surface-soft);
-    border: 1px solid var(--hairline);
+    background: var(--fill);
     border-radius: var(--r-md);
     padding: var(--s-md);
     margin: 0;
     overflow-x: auto;
-    color: var(--body);
+    color: var(--text-2);
   }
-  .verify.ok {
-    background: color-mix(in srgb, var(--success) 8%, white);
-    border-color: color-mix(in srgb, var(--success) 30%, white);
-    color: #047857;
-  }
-  /* 알림 끔 그룹의 히트는 기록에 가까우므로 흐리게 */
-  .hit.muted { border-left-color: var(--hairline); opacity: 0.75; }
 
   @media (max-width: 900px) {
     .grid4 { grid-template-columns: repeat(2, 1fr); }
     header { gap: var(--s-sm); padding: 0 var(--s-md); }
-    header h1 { font-size: 16px; }
-    main { padding: var(--s-lg) var(--s-md); }
-    .card { padding: var(--s-lg); }
+    header h1 { font-size: 15px; }
+    main { padding: var(--s-lg) var(--s-md) 48px; }
+    .card, .advanced { padding-left: var(--s-lg); padding-right: var(--s-lg); }
   }
 </style>
 </head>
