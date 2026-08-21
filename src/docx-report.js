@@ -16,6 +16,8 @@
  * 원문 대조가 가능하게 한다.
  */
 
+const path = require('path');
+const fs = require('fs');
 const {
   Document,
   Packer,
@@ -30,23 +32,34 @@ const {
   BorderStyle,
   ShadingType,
 } = require('docx');
+const { embedFonts } = require('./docx-font-embed');
 
-// ── DESIGN-cal.md 토큰 ──────────────────────────────────────────────
-// 제어판 UI와 같은 팔레트를 쓴다. 다만 본문 서체는 Inter가 아니라 맑은
-// 고딕이다 — Inter에는 한글 글리프가 없어서 어차피 폴백되고, 받는 쪽
-// PC에 Inter가 깔려 있으리라 기대할 수 없다. 색·여백·위계만 가져온다.
-const FONT = '맑은 고딕';
-const INK = '111111';        // primary / ink
-const BODY = '374151';       // body
-const MUTED = '6B7280';      // muted
-const MUTED_SOFT = '898989'; // muted-soft
-const HAIRLINE = 'E5E7EB';   // hairline
-const SURFACE_CARD = 'F5F5F5';
-const SURFACE_SOFT = 'F8F9FA';
-const ON_PRIMARY = 'FFFFFF';
-const ERROR = 'EF4444';
-const WARNING_INK = '92400E';
-const WARNING_FILL = 'FEF3C7';
+// ── 제어판 UI와 같은 팔레트 (애플 계열) ────────────────────────────────
+// 폰트는 Pretendard를 문서에 실제로 심는다(embedFonts, 아래) — 이름만
+// 적으면 받는 사람 PC에 그 폰트가 없을 때 Word가 임의로 대체해서, 결재
+// 문서인데 사람마다 다르게 보인다. TrueType 임베딩으로 그 문제를 없앤다.
+const FONT = 'Pretendard';
+const TEXT = '1D1D1F';       // 애플 --text — 본문 기본색(중간 회색이 아니라 거의 검정)
+const TEXT_2 = '6E6E73';     // --text-2 — 보조 텍스트
+const TEXT_3 = '86868B';     // --text-3 — 근거·타임스탬프 같은 3차 텍스트
+const HAIRLINE = 'D2D2D7';   // --sep
+const FILL = 'F5F5F7';       // --fill — 라벨 칸, 표 zebra
+const ON_ACCENT = 'FFFFFF';
+const BLUE = '0071E3';       // --blue — 애플의 액션 색. 표 머리를 여기로 통일한다.
+const RED = 'D70015';        // --red
+const ORANGE = 'B25000';     // --orange
+const ORANGE_SOFT = 'FFF4E5';
+
+// 호환용 별칭 — 아래 함수들이 기존 이름을 그대로 참조한다.
+const BODY = TEXT;
+const INK = TEXT;
+const MUTED = TEXT_2;
+const MUTED_SOFT = TEXT_3;
+const ERROR = RED;
+const WARNING_INK = ORANGE;
+const WARNING_FILL = ORANGE_SOFT;
+const SURFACE_SOFT = FILL;
+const ON_PRIMARY = ON_ACCENT;
 
 const BORDER = { style: BorderStyle.SINGLE, size: 4, color: HAIRLINE };
 const TABLE_BORDERS = {
@@ -54,11 +67,10 @@ const TABLE_BORDERS = {
   insideHorizontal: BORDER, insideVertical: BORDER,
 };
 
-// 표 머리는 검정 면 + 흰 글자. 스펙상 어두운 면은 아껴 쓰는 신호인데,
-// 문서에서는 그 자리가 섹션 구분(= 웹의 featured 취급)에 해당한다.
-// 흑백 인쇄에서도 구획이 살아남는다는 실용적 이점도 있다.
-const HEADER_FILL = INK;
-const LABEL_FILL = SURFACE_CARD;
+// 표 머리는 파란 면 + 흰 글자 — 제어판의 주 버튼·강조와 같은 색이다.
+// (Cal.com 시절엔 검정이었다. 애플은 액션 색이 파랑이라 여기도 맞췄다.)
+const HEADER_FILL = BLUE;
+const LABEL_FILL = FILL;
 
 function text(str, { bold = false, size = 20, color = BODY, italics = false } = {}) {
   return new TextRun({ text: String(str ?? ''), bold, size, color, italics, font: FONT });
@@ -317,7 +329,27 @@ async function buildDocx(result) {
     sections: [{ properties: {}, children }],
   });
 
-  return Packer.toBuffer(doc);
+  const rawBuffer = await Packer.toBuffer(doc);
+  return embedPretendard(rawBuffer);
+}
+
+const FONT_DIR = path.join(__dirname, '..', 'assets', 'fonts');
+
+/**
+ * Pretendard TrueType을 문서에 실제로 심는다. 폰트 파일을 못 읽으면
+ * (배포 환경에 assets/fonts가 빠졌거나 하는 경우) 임베딩 없이 원본을
+ * 그대로 돌려준다 — 이름만 "Pretendard"로 찍힌 문서가 나가는 것이지,
+ * 보고서 생성 자체가 막히면 안 된다.
+ */
+async function embedPretendard(docxBuffer) {
+  try {
+    const regular = fs.readFileSync(path.join(FONT_DIR, 'Pretendard-Regular.ttf'));
+    const bold = fs.readFileSync(path.join(FONT_DIR, 'Pretendard-Bold.ttf'));
+    return await embedFonts(docxBuffer, FONT, { regular, bold });
+  } catch (err) {
+    console.error('[docx-report] Pretendard 임베딩 실패 — 폰트 이름만 적힌 문서로 대체:', err.message);
+    return docxBuffer;
+  }
 }
 
 /** 저장할 .docx 파일명 (확장자 포함) */

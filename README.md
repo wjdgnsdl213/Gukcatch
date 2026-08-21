@@ -165,6 +165,7 @@ Gukcatch/
 │   ├── report.js               패스 2: 질의-답변 쌍 요약
 │   ├── report-run.js           파이프라인 전체 (CLI/GUI 공용)
 │   ├── docx-report.js          워드 표 형식 출력
+│   ├── docx-font-embed.js      Pretendard를 .docx에 실제로 심기 (OOXML 폰트 임베딩)
 │   └── qa.js                   규칙 기반 Q&A 분리 (지금은 화자 힌트용)
 │
 │   ├── ── 제어판 ────────────────────────────────────────────
@@ -183,9 +184,10 @@ Gukcatch/
 │
 ├── electron/main.js            제어판을 데스크톱 앱으로
 │
-├── assets/fonts/                Pretendard Variable (제어판 UI 폰트, SIL OFL 1.1)
-│   ├── PretendardVariable.woff2  /fonts/ 라우트로 서빙 — CDN 대신 내장
-│   └── LICENSE.txt               라이선스 원문
+├── assets/fonts/                Pretendard (SIL OFL 1.1, LICENSE.txt에 원문 포함)
+│   ├── PretendardVariable.woff2  제어판 UI용 — /fonts/ 라우트로 서빙 (CDN 대신 내장)
+│   └── Pretendard-{Regular,Bold}.ttf  워드 보고서용 — .docx 안에 실제로 심는다
+│                                (src/docx-font-embed.js, ECMA-376 폰트 임베딩)
 │
 ├── .env.example                환경변수 예시 (API 키·SMTP)
 ├── config.example.json         상임위 목록 예시
@@ -222,6 +224,13 @@ Gukcatch/
 
 **비밀번호는 `.env`에만 둡니다.** `config.json`은 평문이고 저장소에 올라갈
 위험이 있어, 주소·수신자는 설정 파일에서 관리하되 인증 정보는 분리했습니다.
+
+**워드 보고서에는 폰트 이름이 아니라 폰트 파일 자체를 심습니다.** `docx`
+라이브러리는 폰트 임베딩을 지원하지 않아서, 이름만 "Pretendard"라고 적으면
+그 폰트가 없는 PC에서 열 때 Word가 임의로 다른 폰트로 대체합니다. 결재
+문서는 다른 사람 PC로 전달되므로 그건 문제입니다. `src/docx-font-embed.js`가
+생성된 .docx(zip)를 열어 ECMA-376 폰트 임베딩 규격대로(GUID 기반 XOR 난독화)
+TrueType을 직접 끼워 넣습니다 — Word의 "글꼴 포함하여 저장"과 같은 방식입니다.
 
 더 자세한 판단 기록은 [ROADMAP.md](ROADMAP.md)에 있습니다.
 
