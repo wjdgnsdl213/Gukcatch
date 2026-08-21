@@ -243,8 +243,27 @@ const PAGE_HTML = `<!doctype html>
     margin-bottom: var(--s-sm);
     background: var(--canvas);
   }
-  .group-head { display: flex; gap: var(--s-xs); margin-bottom: var(--s-sm); }
-  .group-head input, .group-head select { flex: 1; }
+  .group-card.off { background: var(--surface-soft); }
+  .group-head { display: flex; gap: var(--s-xs); margin-bottom: var(--s-md); align-items: center; }
+  .group-head input { flex: 1; font-size: 16px; font-weight: 600; }
+  .group-head select { width: 140px; flex: none; }
+
+  /* 카드 안의 소제목 + 입력 묶음 */
+  .field { margin-bottom: var(--s-md); }
+  .field:last-child { margin-bottom: 0; }
+  .field-label { font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: var(--s-xxs); }
+
+  /* 카드 안에 중첩되는 접기 — 바깥 .advanced보다 한 단계 약하게 */
+  .advanced.sub {
+    border: none;
+    border-top: 1px solid var(--hairline-soft);
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 0;
+    background: transparent;
+  }
+  .advanced.sub summary { padding: var(--s-sm) 0 0; font-size: 13px; }
+  .advanced.sub[open] summary { border-bottom: none; margin-bottom: var(--s-sm); }
   .patterns { display: flex; flex-wrap: wrap; gap: var(--s-xxs); margin-bottom: var(--s-xs); }
   .chip {
     background: var(--surface-card);
@@ -458,10 +477,10 @@ const PAGE_HTML = `<!doctype html>
 <header>
   <h1>국캐치</h1>
   <nav>
-    <button data-tab="sessions" class="active">세션 관리</button>
-    <button data-tab="keywords">키워드 관리</button>
-    <button data-tab="notify">알림</button>
-    <button data-tab="monitor">모니터링</button>
+    <button data-tab="sessions" class="active">감시 대상</button>
+    <button data-tab="keywords">키워드</button>
+    <button data-tab="notify">알림 설정</button>
+    <button data-tab="monitor">실시간</button>
     <button data-tab="report">보고서</button>
     <button data-tab="logs">로그</button>
   </nav>
@@ -475,12 +494,12 @@ const PAGE_HTML = `<!doctype html>
 
   <section id="panel-sessions" class="panel active">
     <div class="card">
-      <h2>감시 세션 (상임위)</h2>
+      <h2>감시할 상임위</h2>
       <table id="sessionTable">
         <thead><tr><th style="width:25%">이름</th><th>URL</th><th style="width:76px"></th></tr></thead>
         <tbody></tbody>
       </table>
-      <button class="btn" id="addSessionBtn">+ 세션 추가</button>
+      <button class="btn" id="addSessionBtn">+ 상임위 추가</button>
 
       <label class="inline-check" style="margin-top:20px">
         <input type="checkbox" id="cfgHeadless" /> 헤드리스 모드 (끄면 브라우저 창이 보입니다)
@@ -518,10 +537,10 @@ const PAGE_HTML = `<!doctype html>
 
   <section id="panel-keywords" class="panel">
     <div class="card">
-      <h2>키워드 그룹</h2>
-      <div class="hint">AI 자막은 고유명사를 자주 틀립니다. 동의어·약칭·띄어쓰기 변형을 최대한 많이 추가하세요.</div>
+      <h2>감시할 키워드</h2>
+      <div class="hint">키워드 하나 = 카드 하나입니다. 알림 여부는 카드마다 따로 정합니다.<br />AI 자막은 고유명사를 자주 틀리므로, 같은 대상의 다른 표기(약칭·띄어쓰기)를 "같은 말"에 최대한 많이 넣으세요.</div>
       <div id="groupList"></div>
-      <button class="btn" id="addGroupBtn">+ 그룹 추가</button>
+      <button class="btn" id="addGroupBtn">+ 키워드 추가</button>
     </div>
     <button class="btn primary" id="saveKeywordsBtn">키워드 저장</button>
   </section>
@@ -564,7 +583,7 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
 
   <section id="panel-monitor" class="panel">
     <div class="card">
-      <h2>세션 상태</h2>
+      <h2>감시 중인 상임위</h2>
       <div id="sessionStatusList" class="empty">감시가 시작되지 않았습니다.</div>
     </div>
     <div class="card">
@@ -721,23 +740,32 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
   // ── 키워드 관리 ──────────────────────────────────────────────
   let groups = [];
 
+  /**
+   * 키워드 카드 하나 = 감시할 주제 하나.
+   *
+   * 카드 맨 위에 [이름][알림 켬/끔][삭제]만 두고, 담당부서·상임위·수신자는
+   * "세부 설정"으로 접는다. 평소에 고치는 건 이름·같은 말·알림 여부뿐인데
+   * 여섯 칸이 한 줄에 늘어서 있으면 어디를 봐야 할지 알기 어렵다.
+   *
+   * 한 카드 안의 "같은 말"은 동의어다 — 자막이 같은 대상을 다르게 적는
+   * 경우(건보공단/건강보험공단)를 잡기 위한 것이라 알림 설정을 공유한다.
+   * 알림을 따로 주고 싶은 주제라면 카드를 나눠야 한다.
+   */
   function renderGroups() {
     const list = $('#groupList');
     list.innerHTML = '';
     if (groups.length === 0) {
-      list.appendChild(el('div', { class: 'empty', text: '등록된 키워드 그룹이 없습니다.' }));
+      list.appendChild(el('div', { class: 'empty', text: '등록된 키워드가 없습니다. 아래 "+ 키워드 추가"를 누르세요.' }));
     }
     groups.forEach((g, gi) => {
-      const labelInput = el('input', { type: 'text', placeholder: '그룹명 (예: 기관명)', value: g.label || '' });
-      labelInput.addEventListener('input', () => { groups[gi].label = labelInput.value; });
-      const deptInput = el('input', { type: 'text', placeholder: '담당부서', value: g.dept || '' });
-      deptInput.addEventListener('input', () => { groups[gi].dept = deptInput.value; });
-      // 구 파일의 priority(high/normal)는 둘 다 "알림"으로 본다.
-      // 지금도 normal 그룹이 토스트·대시보드 알림을 받고 있어서, normal을
-      // "알림 끔"으로 옮기면 쓰던 알림이 말없이 꺼진다.
+      // 구 파일의 priority(high/normal)는 둘 다 "알림 켬"으로 본다.
       const notifyOn = g.notify === undefined ? true : Boolean(g.notify);
+
+      const labelInput = el('input', { type: 'text', placeholder: '키워드 (예: 소상공인)', value: g.label || '' });
+      labelInput.addEventListener('input', () => { groups[gi].label = labelInput.value; });
+
       const notifySelect = el('select', {});
-      [['on', '알림'], ['off', '알림 끔']].forEach(([v, text]) => {
+      [['on', '🔔 알림 켬'], ['off', '🔕 알림 끔']].forEach(([v, text]) => {
         const opt = el('option', { value: v, text });
         if ((v === 'on') === notifyOn) opt.selected = true;
         notifySelect.appendChild(opt);
@@ -746,17 +774,22 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
         groups[gi].notify = notifySelect.value === 'on';
         renderGroups();
       });
-      const delGroupBtn = el('button', { class: 'btn danger small', text: '그룹 삭제', onclick: () => { groups.splice(gi, 1); renderGroups(); } });
 
+      const delBtn = el('button', {
+        class: 'btn danger small', text: '삭제',
+        onclick: () => { groups.splice(gi, 1); renderGroups(); },
+      });
+
+      // ── 같은 말(동의어) ──
       const patternsDiv = el('div', { class: 'patterns' });
       (g.patterns || []).forEach((pat, pi) => {
         patternsDiv.appendChild(el('span', { class: 'chip' }, [
           el('span', { text: pat }),
-          el('button', { text: '×', onclick: () => { groups[gi].patterns.splice(pi, 1); renderGroups(); } }),
+          el('button', { type: 'button', text: '×', onclick: () => { groups[gi].patterns.splice(pi, 1); renderGroups(); } }),
         ]));
       });
 
-      const patInput = el('input', { type: 'text', placeholder: '동의어/약칭 추가 후 Enter (예: 건보공단)' });
+      const patInput = el('input', { type: 'text', placeholder: '같은 말을 적고 Enter (예: 소상공인시장진흥공단, 소진공)' });
       patInput.addEventListener('keydown', (ev) => {
         if (ev.key === 'Enter' && patInput.value.trim()) {
           ev.preventDefault();
@@ -767,16 +800,36 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
         }
       });
 
-      // 알림을 끈 그룹은 수신자를 물어볼 이유가 없다 — 입력칸을 감춰서
-      // "적었는데 왜 안 오지"를 미리 막는다.
-      const mailRow = notifyOn ? buildGroupMail(g, gi) : null;
-
-      list.appendChild(el('div', { class: 'group-card' }, [
-        el('div', { class: 'group-head' }, [labelInput, deptInput, notifySelect, delGroupBtn]),
+      const words = el('div', { class: 'field' }, [
+        el('div', { class: 'field-label', text: '같은 말 — 자막이 다르게 적을 수 있는 표기를 모두 넣으세요' }),
         patternsDiv,
         el('div', { class: 'pattern-input' }, [patInput]),
+      ]);
+
+      // ── 세부 설정 (접힘) ──
+      const deptInput = el('input', { type: 'text', placeholder: '예: 정책기획실', value: g.dept || '' });
+      deptInput.addEventListener('input', () => { groups[gi].dept = deptInput.value; });
+
+      const detailBody = [
+        el('div', { class: 'field' }, [
+          el('div', { class: 'field-label', text: '담당부서 — 보고서에 자동으로 채워집니다' }),
+          deptInput,
+        ]),
         buildScope(g, gi),
-        ...(mailRow ? [mailRow] : []),
+      ];
+      // 알림을 끈 키워드는 수신자를 물어볼 이유가 없다 — 입력칸을 감춰서
+      // "적었는데 왜 안 오지"를 미리 막는다.
+      if (notifyOn) detailBody.push(buildGroupMail(g, gi));
+
+      const details = el('details', { class: 'advanced sub' }, [
+        el('summary', { text: '세부 설정 (담당부서 · 적용 상임위' + (notifyOn ? ' · 수신자' : '') + ')' }),
+        ...detailBody,
+      ]);
+
+      list.appendChild(el('div', { class: 'group-card' + (notifyOn ? '' : ' off') }, [
+        el('div', { class: 'group-head' }, [labelInput, notifySelect, delBtn]),
+        words,
+        details,
       ]));
     });
   }
@@ -848,8 +901,8 @@ SMTP_FROM=국캐치 &lt;보내는계정@example.com&gt;</pre>
     input.addEventListener('input', () => {
       groups[gi].emails = input.value.split(',').map((s) => s.trim()).filter(Boolean);
     });
-    return el('div', { class: 'scope' }, [
-      el('div', { class: 'scope-label', text: '이 그룹 전용 수신자' }),
+    return el('div', { class: 'field' }, [
+      el('div', { class: 'field-label', text: '이 키워드 전용 수신자 — 비우면 "알림 설정"의 기본 수신자로 갑니다' }),
       input,
     ]);
   }
